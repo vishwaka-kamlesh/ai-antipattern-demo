@@ -18,27 +18,67 @@ jobs:
         id: semgrep
         run: |
           semgrep --config semgrep-rules --json > results.json || true
-          # If no issues are found, mark NO_ISSUES=true
-          if ! grep -q '"results": \[' results.json; then
+          
+          # Debug output
+          echo "=== Semgrep Results Preview ==="
+          head -c 500 results.json
+          echo ""
+          echo "==============================="
+          
+          # Check if results array is empty - look for "results":[] pattern
+          if grep -q '"results":\[\]' results.json || grep -q '"results": \[\]' results.json; then
             echo "NO_ISSUES=true" >> $GITHUB_ENV
+            echo "✅ No issues found by Semgrep"
+          else
+            echo "NO_ISSUES=false" >> $GITHUB_ENV
+            echo "⚠️ Issues found - will run AI analysis"
           fi
 
       - name: Explain Issues using Hugging Face
         if: env.NO_ISSUES != 'true'
-        run: python post_to_hf.py
+        run: |
+          echo "🤖 Starting AI analysis..."
+          python post_to_hf.py
+          echo "✅ AI analysis completed"
         env:
           HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
 
-      - name: Post AI Comments on PR
+      - name: Check if AI output exists
         if: env.NO_ISSUES != 'true'
-        run: python comment_on_pr.py
+        id: check_ai_output
+        run: |
+          if [ -f "ai_output.json" ]; then
+            echo "ai_output_exists=true" >> $GITHUB_OUTPUT
+            echo "✅ ai_output.json found"
+          else
+            echo "ai_output_exists=false" >> $GITHUB_OUTPUT
+            echo "❌ ai_output.json not found!"
+          fi
+
+      - name: Post AI Comments on PR
+        if: env.NO_ISSUES != 'true' && steps.check_ai_output.outputs.ai_output_exists == 'true'
+        run: |
+          echo "💬 Posting comments to PR #${{ github.event.pull_request.number }}..."
+          python comment_on_pr.py
+          echo "✅ Comments posted"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
 
       - name: Fail if Critical Issues
         if: env.NO_ISSUES != 'true'
         run: |
-          if grep -q '"severity": *"ERROR"' results.json; then
+          if grep -q '"severity": *"ERROR"' results.json || grep -q '"severity":"ERROR"' results.json; then
             echo "❌ Critical anti-patterns found!"
             exit 1
           fi
+
+      - name: Upload artifacts for debugging
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-outputs
+          path: |
+            results.json
+            ai_output.json
+          retention-days: 3
