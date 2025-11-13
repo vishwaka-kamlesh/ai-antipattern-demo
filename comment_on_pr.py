@@ -2,58 +2,99 @@ import os
 import json
 from github import Github
 
-# --- Get PR context ---
+# --------------------------------------------------------------------
+#  DETECT PR CONTEXT
+# --------------------------------------------------------------------
 repo_name = os.getenv("GITHUB_REPOSITORY")
 ref = os.getenv("GITHUB_REF", "")
-pr_number = int(os.getenv("PR_NUMBER") or (ref.split("/")[-1] if "pull" in ref else 0))
+pr_number = os.getenv("PR_NUMBER")
 
-gh = Github(os.getenv("GITHUB_TOKEN"))
+if not pr_number:
+    if "refs/pull/" in ref:
+        try:
+            pr_number = ref.split("/")[2]
+        except IndexError:
+            pr_number = None
+
+if not pr_number:
+    raise ValueError("❌ Unable to determine pull request number from environment variables.")
+
+pr_number = int(pr_number)
+
+# --------------------------------------------------------------------
+#  CONNECT TO GITHUB
+# --------------------------------------------------------------------
+token = os.getenv("GITHUB_TOKEN")
+if not token:
+    raise ValueError("❌ Missing GITHUB_TOKEN environment variable.")
+
+gh = Github(token)
 repo = gh.get_repo(repo_name)
 pr = repo.get_pull(pr_number)
 
-# --- Load AI output ---
+# --------------------------------------------------------------------
+#  LOAD AI OUTPUT
+# --------------------------------------------------------------------
+if not os.path.exists("ai_output.json"):
+    raise FileNotFoundError("❌ ai_output.json not found — ensure post_to_hf.py ran successfully.")
+
 with open("ai_output.json", "r", encoding="utf-8") as f:
     raw = json.load(f)
 
-# Extract message content if using chat completion
 if isinstance(raw, dict) and raw.get("choices"):
     content = raw["choices"][0]["message"]["content"]
 else:
     content = json.dumps(raw, indent=2)
 
-# Try parsing the JSON array produced by the model
 try:
     issues = json.loads(content)
 except Exception:
-    # If parsing fails, post raw text so you can debug
     issues = [{"file": "N/A", "issue": "AI output not valid JSON", "details": content}]
 
-# --- Build the comment body ---
+# --------------------------------------------------------------------
+#  BUILD MARKDOWN COMMENT
+# --------------------------------------------------------------------
 body_lines = ["### 🤖 AI Detailed Anti-Pattern Review\n"]
+
 for it in issues:
-    body_lines.append(f"**File:** {it.get('file','?')} (line {it.get('line','?')})")
-    body_lines.append(f"**Issue:** {it.get('issue','?')}")
-    if it.get("severity"):
-        body_lines.append(f"**Severity:** {it.get('severity')}")
-    if it.get("explanation"):
-        body_lines.append(f"**Explanation:** {it.get('explanation')}")
-    if it.get("detailed_fix"):
-        body_lines.append(f"**Detailed Fix:**\n{it.get('detailed_fix')}")
-    if it.get("code_patch"):
+    file = it.get("file", "?")
+    line = it.get("line", "?")
+    issue = it.get("issue", "")
+    severity = it.get("severity", "")
+    explanation = it.get("explanation", "")
+    detailed_fix = it.get("detailed_fix", "")
+    code_patch = it.get("code_patch", "")
+    tests = it.get("tests", "")
+    risk = it.get("risk", "")
+    refs = it.get("references", [])
+
+    body_lines.append(f"**File:** `{file}` (line {line})")
+    if severity:
+        body_lines.append(f"**Severity:** {severity}")
+    if issue:
+        body_lines.append(f"**Issue:** {issue}")
+    if explanation:
+        body_lines.append(f"**Explanation:** {explanation}")
+    if detailed_fix:
+        body_lines.append(f"**Detailed Fix:**\n{detailed_fix}")
+    if code_patch:
         body_lines.append("**Suggested Code Patch:**\n```")
-        body_lines.append(it.get("code_patch"))
+        body_lines.append(code_patch)
         body_lines.append("```")
-    if it.get("tests"):
-        body_lines.append(f"**Tests:**\n{it.get('tests')}")
-    if it.get("risk"):
-        body_lines.append(f"**Risk:**\n{it.get('risk')}")
-    if it.get("references"):
-        refs = "\n".join(f"- {r}" for r in it.get("references"))
-        body_lines.append(f"**References:**\n{refs}")
+    if tests:
+        body_lines.append(f"**Suggested Tests:**\n{tests}")
+    if risk:
+        body_lines.append(f"**Risk:**\n{risk}")
+    if refs:
+        body_lines.append("**References:**")
+        for r in refs:
+            body_lines.append(f"- {r}")
     body_lines.append("---")
 
 comment_body = "\n".join(body_lines)
 
-# --- Post the comment on the PR ---
+# --------------------------------------------------------------------
+#  POST COMMENT TO PR
+# --------------------------------------------------------------------
 pr.create_issue_comment(comment_body)
-print("✅ Posted AI detailed report to PR")
+print("✅ Posted AI detailed anti-pattern report to PR.")

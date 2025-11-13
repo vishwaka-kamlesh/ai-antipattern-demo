@@ -7,6 +7,7 @@ on:
 jobs:
   review:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
@@ -14,22 +15,30 @@ jobs:
         run: pip install semgrep requests pygithub
 
       - name: Run Semgrep
-        run: semgrep --config semgrep-rules --json > results.json
-        continue-on-error: true
+        id: semgrep
+        run: |
+          semgrep --config semgrep-rules --json > results.json || true
+          # If no issues are found, mark NO_ISSUES=true
+          if ! grep -q '"results": \[' results.json; then
+            echo "NO_ISSUES=true" >> $GITHUB_ENV
+          fi
 
       - name: Explain Issues using Hugging Face
+        if: env.NO_ISSUES != 'true'
         run: python post_to_hf.py
         env:
           HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
 
       - name: Post AI Comments on PR
+        if: env.NO_ISSUES != 'true'
         run: python comment_on_pr.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Fail if Critical Issues
+        if: env.NO_ISSUES != 'true'
         run: |
-          if grep -q "ERROR" results.json; then
+          if grep -q '"severity": *"ERROR"' results.json; then
             echo "❌ Critical anti-patterns found!"
             exit 1
           fi
