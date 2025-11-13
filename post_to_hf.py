@@ -1,8 +1,12 @@
-import os, json, requests, sys
+import os
+import json
+import requests
+import sys
 
-MODEL = "meta-llama/Meta-Llama-3-8B-Instruct"
+MODEL = "meta-llama/Llama-3.1-8B-Instruct"          # ✅ live model slug
+API_URL = "https://router.huggingface.co/v1/chat/completions"  # ✅ modern endpoint
+
 token = os.getenv("HF_API_TOKEN")
-
 if not token:
     print("❌ Missing HF_API_TOKEN environment variable.")
     sys.exit(1)
@@ -11,7 +15,7 @@ if not os.path.exists("results.json"):
     print("❌ Missing results.json from Semgrep.")
     sys.exit(1)
 
-with open("results.json") as f:
+with open("results.json", "r") as f:
     data = json.load(f)
 
 if not data.get("results"):
@@ -34,10 +38,19 @@ Here are the issues:
 {json.dumps(data['results'], indent=2)}
 """
 
+payload = {
+    "model": MODEL,
+    "messages": [
+        {"role": "system", "content": "You are an expert code reviewer."},
+        {"role": "user", "content": prompt},
+    ],
+    "max_tokens": 500,
+}
+
 resp = requests.post(
-    f"https://router.huggingface.co/hf-inference/{MODEL}",
+    API_URL,
     headers={"Authorization": f"Bearer {token}"},
-    json={"inputs": prompt, "parameters": {"max_new_tokens": 300}},
+    json=payload,
 )
 
 if resp.status_code != 200:
@@ -46,5 +59,8 @@ if resp.status_code != 200:
     sys.exit(1)
 
 print("✅ Response received from Hugging Face.")
-with open("ai_output.json", "w") as f:
-    f.write(json.dumps(resp.json(), indent=2))
+
+with open("ai_output.json", "w", encoding="utf-8") as f:
+    json.dump(resp.json(), f, indent=2, ensure_ascii=False)
+
+print("🧠 AI analysis saved to ai_output.json")
