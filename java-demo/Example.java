@@ -5,9 +5,5 @@ public class Example {
         if (a == b) {
             System.out.println("Equal!");
         }
-
-        if (a == b) {
-            System.out.println("Equal!");
-        }
     }
 }
