@@ -24,12 +24,26 @@ if not os.path.exists("results.json"):
 with open("results.json", "r", encoding="utf-8") as f:
     data = json.load(f)
 
-# Sanity check: skip if no issues found
-if not data or "results" not in data or len(data["results"]) == 0:
+if not data or "results" not in data:
     print("✅ No issues found. Skipping AI analysis.")
     sys.exit(0)
 
-print(f"🔍 Found {len(data['results'])} issues — triggering AI review.")
+# --------------------------------------------------------------------
+#  FILTER SIGNIFICANT ISSUES (ERROR / WARNING)
+# --------------------------------------------------------------------
+bad_issues = [
+    r for r in data["results"]
+    if r.get("extra", {}).get("severity", "").upper() in ("ERROR", "WARNING")
+]
+
+if not bad_issues:
+    print("✅ Only minor or informational issues found. Skipping AI analysis.")
+    sys.exit(0)
+
+print(f"🔍 Found {len(bad_issues)} significant issues — triggering AI review.")
+
+# Use only filtered issues for AI
+data["results"] = bad_issues
 
 # --------------------------------------------------------------------
 #  BUILD PROMPT FOR DETAILED REVIEW
