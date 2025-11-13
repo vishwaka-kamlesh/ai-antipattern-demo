@@ -1,6 +1,6 @@
 import os, json, requests, sys
 
-MODEL = "meta-llama/Llama-3-8b-instruct"
+MODEL = "meta-llama/Meta-Llama-3-8B-Instruct"
 token = os.getenv("HF_API_TOKEN")
 
 if not token:
