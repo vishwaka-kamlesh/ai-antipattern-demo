@@ -35,7 +35,7 @@ Here are the issues:
 """
 
 resp = requests.post(
-    f"https://api-inference.huggingface.co/models/{MODEL}",
+    f"https://router.huggingface.co/hf-inference/{MODEL}",
     headers={"Authorization": f"Bearer {token}"},
     json={"inputs": prompt, "parameters": {"max_new_tokens": 300}},
 )
