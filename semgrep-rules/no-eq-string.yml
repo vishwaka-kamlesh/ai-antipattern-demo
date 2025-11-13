@@ -1,0 +1,7 @@
+rules:
+  - id: no-eq-string
+    languages: [java]
+    message: "Use .equals() for string comparison instead of ==."
+    severity: WARNING
+    pattern: |
+      if ($X == $Y) { ... }

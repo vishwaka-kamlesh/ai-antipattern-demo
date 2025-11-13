@@ -1,0 +1,9 @@
+rules:
+  - id: no-query-in-loop-go
+    languages: [go]
+    message: "Query inside loop detected. Move the query outside the loop."
+    severity: ERROR
+    pattern: |
+      for $VAR := $INIT; $COND; $UPDATE {
+        $DB.Query(...)
+      }
