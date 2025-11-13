@@ -1,6 +1,6 @@
 import os, json, requests, sys
 
-MODEL = "mistralai/Mixtral-8x7B-Instruct-v0.1"
+MODEL = "meta-llama/Llama-3-8b-instruct"
 token = os.getenv("HF_API_TOKEN")
 
 if not token:
@@ -35,7 +35,7 @@ Here are the issues:
 """
 
 resp = requests.post(
-    f"https://api-inference.huggingface.co/models/{MODEL}",
+    f"https://router.huggingface.co/hf-inference/{MODEL}",
     headers={"Authorization": f"Bearer {token}"},
     json={"inputs": prompt, "parameters": {"max_new_tokens": 300}},
 )
