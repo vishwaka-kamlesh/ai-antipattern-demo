@@ -2,6 +2,6 @@ rules:
   - id: no-eq-string
     languages: [java]
     message: "Use .equals() for string comparison instead of ==."
-    severity: WARNING
+    severity: ERROR
     pattern: |
       if ($X == $Y) { ... }
