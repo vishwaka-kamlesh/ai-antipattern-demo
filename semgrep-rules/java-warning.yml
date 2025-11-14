@@ -9,14 +9,6 @@ rules:
       $X: java.lang.String
       $Y: java.lang.String
 
-  - id: java.empty-catch-block
-    message: "Empty catch block found. Add handling or logging."
-    severity: ERROR
-    languages: [java]
-    pattern: |
-      catch ($TYPE $VAR) {
-      }
-
   - id: no-print-stacktrace
     message: "Avoid printStackTrace(); use proper logging."
     languages: [java]
@@ -30,3 +22,44 @@ rules:
     severity: ERROR
     pattern: |
       System.out.println($X)
+
+  - id: hardcoded-credential
+    message: "Hard-coded password / API key – store in config or secret manager."
+    languages: [java]
+    severity: ERROR
+    pattern: |
+      "$SECRET" = "$VALUE"
+    metavariable-pattern:
+      metavariable: $SECRET
+      patterns:
+        - pattern-either:
+            - pattern: password
+            - pattern: passwd
+            - pattern: pwd
+            - pattern: apiKey
+            - pattern: secret
+            - pattern: token
+      language: java
+
+  - id: no-thread-sleep
+    message: "Thread.sleep() blocks the thread – use scheduled executors or awaitility."
+    languages: [java]
+    severity: ERROR
+    pattern: |
+      Thread.sleep($MS)
+
+  - id: resource-not-closed
+    message: "Resource opened but not closed in a finally / try-with-resources."
+    languages: [java]
+    severity: ERROR
+    pattern: |
+      $RES = new $TYPE(...);
+      ...
+    metavariable-pattern:
+      metavariable: $TYPE
+      patterns:
+        - pattern-either:
+            - pattern: FileInputStream
+            - pattern: FileOutputStream
+            - pattern: BufferedReader
+            - pattern: BufferedWriter
