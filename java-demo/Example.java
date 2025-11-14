@@ -22,5 +22,11 @@ public class Example {
         if (1L == 1L) {
             System.out.println("Equal!");
         }
+
+        String c = "hello";
+        String d = new String("hello");
+        if (c == d) {
+            System.out.println("Equal!");
+        }
     }
 }

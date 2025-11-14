@@ -4,9 +4,7 @@ rules:
     languages: [java]
     severity: ERROR
     pattern: |
-      if ($X == $Y) {
-        ...
-      }
-    metavariables:
-      $X: string
-      $Y: string
+      if ($X == $Y) ...
+    metavariable-types:
+      $X: java.lang.String
+      $Y: java.lang.String
