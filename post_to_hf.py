@@ -29,20 +29,27 @@ if not issues:
 print(f"🔍 Sending {len(issues)} issues to AI...")
 
 prompt = f"""
-Analyze the issues below and return a JSON array.
+Convert the following Semgrep issues into a pure JSON array.
 
-Use the provided `code_snippet` to produce
-- explanation
-- code_patch
-- risk
-- fix details
+STRICT OUTPUT RULES:
+1️⃣ Output ONLY a JSON array: [ {...}, {...} ]
+2️⃣ No markdown, no code blocks, no narration.
+3️⃣ No trailing commas.
+4️⃣ Use only double quotes for strings.
+5️⃣ Every element MUST include EXACTLY these fields:
+   - "file": string
+   - "line": number
+   - "issue": string
+   - "severity": string
+   - "explanation": string
+   - "detailed_fix": string
+   - "code_patch": string
+   - "risk": string
+6️⃣ If information is missing, fill with a brief helpful message.
+7️⃣ The output will be parsed by a machine. Any deviation breaks the workflow.
 
-Rules:
-• Return ONLY JSON
-• No markdown fences
-
-Semgrep Issues:
-{json.dumps(issues)}
+Now transform this Semgrep JSON (DO NOT reformat or include its keys):
+{json.dumps(issues, indent=2)}
 """
 
 payload = {
