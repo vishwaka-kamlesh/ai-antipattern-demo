@@ -16,70 +16,62 @@ print("📂 Reading Semgrep results...")
 try:
     data = json.load(open("results.json", "r"))
 except Exception:
-    print("✨ No issues or invalid results.json")
-    open("ai_output.json", "w").write("[]")
+    print("✨ No issues or invalid Semgrep output.")
+    json.dump([], open("ai_output.json", "w"), indent=2)
     sys.exit(0)
 
 issues = data.get("results", [])
 if not issues:
     print("🧼 Clean diff, no issues.")
-    open("ai_output.json", "w").write("[]")
+    json.dump([], open("ai_output.json", "w"), indent=2)
     sys.exit(0)
 
 print(f"🔍 Sending {len(issues)} issues to AI...")
 
 prompt = f"""
-Convert the following Semgrep issues into a pure JSON array.
+Convert these Semgrep issues into a JSON array.
 
-STRICT OUTPUT RULES:
-1️⃣ Output ONLY a JSON array: [ {...}, {...} ]
-2️⃣ No markdown, no code blocks, no narration.
-3️⃣ No trailing commas.
-4️⃣ Use only double quotes for strings.
-5️⃣ Every element MUST include EXACTLY these fields:
-   - "file": string
-   - "line": number
-   - "issue": string
-   - "severity": string
-   - "explanation": string
-   - "detailed_fix": string
-   - "code_patch": string
-   - "risk": string
-6️⃣ If information is missing, fill with a brief helpful message.
-7️⃣ The output will be parsed by a machine. Any deviation breaks the workflow.
+STRICT RULES:
+• Return ONLY a JSON array: [{{}}, {{}}]
+• No markdown, no text outside JSON
+• Every element MUST contain:
+  "file", "line", "issue", "severity", "explanation",
+  "detailed_fix", "code_patch", "risk"
 
-Now transform this Semgrep JSON (DO NOT reformat or include its keys):
+Use the field "code" to generate a corrected code_patch.
+
+Semgrep issues:
 {json.dumps(issues, indent=2)}
 """
 
 payload = {
     "model": MODEL,
     "messages": [
-        {"role": "system", "content": "You are a precise and disciplined code reviewer. Output must be valid JSON only."},
+        {"role": "system", "content": "You are a strict senior backend code reviewer. Output only JSON."},
         {"role": "user", "content": prompt},
     ],
     "temperature": 0.0,
-    "max_tokens": 1000,
+    "max_tokens": 1200
 }
 
 resp = requests.post(API_URL,
-                     headers={"Authorization": f"Bearer {token}"},
-                     json=payload, timeout=60)
+    headers={"Authorization": f"Bearer {token}"},
+    json=payload,
+    timeout=60
+)
 
 if resp.status_code != 200:
-    print("❌ API Error:", resp.text)
-    open("ai_output.json", "w").write("[]")
+    print(f"❌ API Error: {resp.text}")
+    json.dump([], open("ai_output.json", "w"), indent=2)
     sys.exit(1)
 
-content = resp.json()["choices"][0]["message"]["content"].strip()
-
-if content.startswith("```"):
-    content = content.replace("```", "").replace("json", "").strip()
+content = resp.json()["choices"][0]["message"]["content"]
+content = content.replace("```json", "").replace("```", "").strip()
 
 try:
     parsed = json.loads(content)
-except Exception:
-    print("⚠️ AI did not return valid JSON. Saving empty array.")
+except json.JSONDecodeError:
+    print("⚠️ AI output is not strict JSON. Attempting fallback parse...")
     parsed = []
 
 json.dump(parsed, open("ai_output.json", "w"), indent=2)
