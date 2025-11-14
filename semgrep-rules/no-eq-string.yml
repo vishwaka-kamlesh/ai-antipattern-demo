@@ -1,11 +1,10 @@
 rules:
   - id: no-eq-string
+    message: "Use .equals() instead of == for string comparison."
     languages: [java]
-    message: "Use .equals() for String comparison instead of ==."
     severity: ERROR
     pattern: |
-      if ($X == $Y) { ... }
-    type: java
-    metavariables:
-      $X: string
-      $Y: string
+      if ($X == $Y) ...
+    metavariable-types:
+      $X: java.lang.String
+      $Y: java.lang.String

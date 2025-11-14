@@ -32,7 +32,7 @@ for file_path in changed_files:
     diff_output = subprocess.getoutput(f"git diff -U0 {BASE_SHA} -- {file_path}")
     print(f"🔍 Raw diff:\n{diff_output}")
 
-    hunks = re.findall(r"@@ \-(\\d+),?\\d* \\+(\\d+),?(\\d*) @@", diff_output)
+    hunks = re.findall(r"@@ \-(\d+),?\d* \+(\d+),?(\d*) @@", diff_output)
     print(f"📌 Hunks found: {hunks}")
 
     if not hunks:
@@ -54,31 +54,59 @@ for file_path in changed_files:
         print(f"📌 File extension for chunk: {file_ext}")
 
         # Write chunk to temp file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
-            tmp.write(chunk.encode("utf-8"))
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext, mode='w', encoding='utf-8') as tmp:
+            tmp.write(chunk)
             tmp_path = tmp.name
 
         print(f"📍 Temp chunk file created: {tmp_path}")
 
         # Run Semgrep on chunk
-        cmd = f"semgrep --config semgrep-rules --json {tmp_path}"
-        print(f"⚙️ Running Semgrep: {cmd}")
-
-        sg_output = subprocess.getoutput(cmd)
-        print(f"📊 Semgrep result raw:\n{sg_output}")
+        cmd = ["semgrep", "--config", "semgrep-rules", "--json", tmp_path]
+        print(f"⚙️ Running Semgrep: {' '.join(cmd)}")
 
         try:
+            # Use subprocess.run to properly capture output
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            sg_output = result.stdout
+            print(f"📊 Semgrep result raw:\n{sg_output}")
+            
+            # Extract JSON from output (handle warnings/text before JSON)
+            json_start = sg_output.find('{')
+            if json_start > 0:
+                print(f"⚠️ Stripping non-JSON prefix ({json_start} chars)")
+                sg_output = sg_output[json_start:]
+            elif json_start == -1:
+                print(f"❌ No JSON found in output")
+                continue
+
             parsed = json.loads(sg_output)
             print(f"📌 Parsed issues: {parsed.get('results', [])}")
-        except Exception as e:
+            
+            for issue in parsed.get("results", []):
+                issue["path"] = file_path
+                issue["start"]["line"] += new_start - 1
+                issue["end"]["line"] += new_start - 1
+                results.append(issue)
+                
+        except json.JSONDecodeError as e:
             print(f"❌ Failed to parse Semgrep JSON: {e}")
-            continue
-
-        for issue in parsed.get("results", []):
-            issue["path"] = file_path
-            issue["start"]["line"] += new_start - 1
-            issue["end"]["line"] += new_start - 1
-            results.append(issue)
+            print(f"📄 First 200 chars: {sg_output[:200]}")
+        except subprocess.TimeoutExpired:
+            print(f"❌ Semgrep timed out on {tmp_path}")
+        except Exception as e:
+            print(f"❌ Unexpected error: {e}")
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
 
 print("\n====== FINAL RESULTS ======")
 print(results)
