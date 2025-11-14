@@ -29,23 +29,6 @@ if not issues:
 print(f"🔍 Sending {len(issues)} issues to AI...")
 
 prompt = f"""
-Analyze the issues below and return a JSON array.
-
-Use the provided `code_snippet` to produce
-- explanation
-- code_patch
-- risk
-- fix details
-
-Rules:
-• Return ONLY JSON
-• No markdown fences
-
-Semgrep Issues:
-{json.dumps(issues)}
-"""
-
-prompt = f"""
 Analyze Semgrep issues and convert them into a JSON array.
 
 Each element must include:
