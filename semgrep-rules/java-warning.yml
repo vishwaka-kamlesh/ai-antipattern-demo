@@ -1,0 +1,32 @@
+rules:
+  - id: no-eq-string
+    message: "Use .equals() instead of == for string comparison."
+    languages: [java]
+    severity: ERROR
+    pattern: |
+      if ($X == $Y) ...
+    metavariable-types:
+      $X: java.lang.String
+      $Y: java.lang.String
+
+  - id: no-empty-catch
+    message: "Empty catch block detected. Handle or log the exception."
+    languages: [java]
+    severity: ERROR
+    pattern: |
+      catch ($E) {
+      }
+
+  - id: no-print-stacktrace
+    message: "Avoid printStackTrace(); use proper logging."
+    languages: [java]
+    severity: ERROR
+    pattern: |
+      $EX.printStackTrace()
+
+  - id: no-system-out
+    message: "Avoid System.out.println; use logging framework."
+    languages: [java]
+    severity: ERROR
+    pattern: |
+      System.out.println($X)
