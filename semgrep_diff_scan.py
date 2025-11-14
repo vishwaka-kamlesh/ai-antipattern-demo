@@ -7,15 +7,17 @@ import re
 
 print("🔍 Extracting changed code for Semgrep scanning...")
 
+# Determine base commit for diff
 BASE_SHA = subprocess.getoutput("git merge-base HEAD origin/main").strip()
 print(f"📌 Using base commit: {BASE_SHA}")
 
+# Files changed in this PR
 changed_files = subprocess.getoutput(f"git diff --name-only {BASE_SHA}").splitlines()
 
 if not changed_files:
     print("✨ No changed files. Writing empty results.")
     with open("results.json", "w") as f:
-        f.write(json.dumps({"results": []}))
+        json.dump({"results": []}, f)
     sys.exit(0)
 
 results = []
@@ -25,7 +27,7 @@ for file_path in changed_files:
         continue
 
     diff_output = subprocess.getoutput(f"git diff -U0 {BASE_SHA} -- {file_path}")
-    hunks = re.findall(r"@@ \-(\d+),?\d* \+(\d+),?(\d*) @@", diff_output)
+    hunks = re.findall(r"@@ \-(\\d+),?\\d* \\+(\\d+),?(\\d*) @@", diff_output)
 
     if not hunks:
         continue
@@ -37,12 +39,17 @@ for file_path in changed_files:
         new_start = int(new_start)
         length = int(length) if length else 1
 
-        chunk = "".join(lines[new_start-1:new_start-1+length])
+        # Extract only changed block
+        chunk = "".join(lines[new_start - 1:new_start - 1 + length])
 
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".tmp") as tmp:
+        # Preserve correct file extension for Semgrep language detection
+        file_ext = os.path.splitext(file_path)[1] or ".txt"
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp:
             tmp.write(chunk.encode("utf-8"))
             tmp_path = tmp.name
 
+        # Run Semgrep only on extracted hunk
         sg_output = subprocess.getoutput(f"semgrep --config semgrep-rules --json {tmp_path}")
 
         try:
@@ -53,6 +60,7 @@ for file_path in changed_files:
         for issue in parsed.get("results", []):
             issue["path"] = file_path
 
+            # Adjust back to original file line numbers
             if "start" in issue:
                 issue["start"]["line"] += new_start - 1
             if "end" in issue:
@@ -60,6 +68,7 @@ for file_path in changed_files:
 
             results.append(issue)
 
+# Save merged results
 with open("results.json", "w", encoding="utf-8") as f:
     json.dump({"results": results}, f, indent=2)
 
