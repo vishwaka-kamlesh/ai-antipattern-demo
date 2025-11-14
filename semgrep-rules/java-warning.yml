@@ -11,19 +11,17 @@ rules:
 
   - id: java.empty-catch-block
     message: "Empty catch block found. Consider adding logging or handling the exception appropriately."
-    languages:
-      - java
-    patterns:
-      - pattern: |
-          try {
-            // ...
-          } catch ($EXCEPTION $VAR) {
-            // Empty block, potentially with comments or whitespace
-            $OPTIONAL_COMMENT_OR_WHITESPACE
-          }
-    pattern-regex: |
-      catch\\s*\\([^\\)]*\\)\\s*\\{((/\\*(.|[\\r\\n])*?\\*/)|\\s)*\\}
+    languages: [java]
     severity: WARNING
+    pattern: |
+      catch ($E) {
+        ...
+      }
+    pattern-not: |
+      catch ($E) {
+        $S
+      }
+
 
   - id: no-print-stacktrace
     message: "Avoid printStackTrace(); use proper logging."
