@@ -3,25 +3,8 @@ rules:
     message: "Use .equals() instead of == for string comparison."
     languages: [java]
     severity: ERROR
-    pattern-either:
-      # 1. String literal to string literal
-      - pattern: $X == $Y
-        metavariable-pattern:
-          X: string_literal
-          Y: string_literal
-
-      # 2. Literal to variable
-      - pattern: $X == $Y
-        metavariable-pattern:
-          X: string_literal
-
-      - pattern: $X == $Y
-        metavariable-pattern:
-          Y: string_literal
-
-      # 3. Variable to variable with type check
-      - pattern: |
-          if ($X == $Y) ...
-        metavariable-types:
-          X: java.lang.String
-          Y: java.lang.String
+    pattern: |
+      if ($X == $Y) ...
+    metavariable-types:
+      $X: java.lang.String
+      $Y: java.lang.String
