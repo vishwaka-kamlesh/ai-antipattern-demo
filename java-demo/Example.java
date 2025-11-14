@@ -1,24 +1,35 @@
-public class Example {
-    public static void main(String[] args) {
-String str1 = "hello";
-        String str2 = "hello";
+import java.io.*;
 
-        // Triggers no-eq-string
-        if (str1 == str2) {
-            System.out.println("Strings are equal"); // Triggers no-system-out
+public class Example {
+
+    public static void main(String[] args) throws Exception {
+
+        // 1. no-eq-string
+        String s1 = "hello";
+        String s2 = new String("hello");
+        if (s1 == s2) {  
+            
         }
 
+        // 2. no system out
+        System.out.println("This is a log");
+
+        // 3. no-print-stacktrace
         try {
             int x = 1 / 0;
-        } catch (ArithmeticException e) {
-            e.printStackTrace(); // Triggers no-print-stacktrace
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
-        try {
-            int y = Integer.parseInt("abc");
-        } catch (NumberFormatException ex) {
-            // Triggers java.empty-catch-block
-        }
-    }
+        // 4. hardcoded-credential
+        String password = "SuperSecret123!";
+        String apiKey = "sk-abc123xyz";
+
+        // 5. no-thread-sleep
+        Thread.sleep(1000);
+
+        // 6. resource-not-closed
+        FileInputStream fis = new FileInputStream("data.txt");
+        BufferedReader br = new BufferedReader(new FileReader("log.txt"));
     }
 }
