@@ -9,13 +9,21 @@ rules:
       $X: java.lang.String
       $Y: java.lang.String
 
-  - id: no-empty-catch
-    message: "Empty catch block detected. Handle or log the exception."
-    languages: [java]
-    severity: ERROR
-    pattern: |
-      catch ($E) {
-      }
+  - id: java.empty-catch-block
+    message: "Empty catch block found. Consider adding logging or handling the exception appropriately."
+    languages:
+      - java
+    patterns:
+      - pattern: |
+          try {
+            // ...
+          } catch ($EXCEPTION $VAR) {
+            // Empty block, potentially with comments or whitespace
+            $OPTIONAL_COMMENT_OR_WHITESPACE
+          }
+    pattern-regex: |
+      catch\\s*\\([^\\)]*\\)\\s*\\{((/\\*(.|[\\r\\n])*?\\*/)|\\s)*\\}
+    severity: WARNING
 
   - id: no-print-stacktrace
     message: "Avoid printStackTrace(); use proper logging."
