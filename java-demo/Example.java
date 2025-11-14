@@ -6,18 +6,8 @@ public class Example {
             System.out.println("Equal!");
         }
 
-        String c = "hello";
-        String d = new String("hello");
-        if (c == d) {
+        if ("a" == "a") {
             System.out.println("Equal!");
         }
-
-        String e = "hello";
-        String f = new String("hello");
-        if (e == f) {
-            System.out.println("Equal!");
-        }
-
-
     }
 }
