@@ -1,4 +1,5 @@
-import os, json, re
+import os
+import json
 from github import Github, Auth
 
 token = os.getenv("GITHUB_TOKEN")
@@ -9,20 +10,17 @@ auth = Auth.Token(token)
 gh = Github(auth=auth)
 pr = gh.get_repo(repo_name).get_pull(int(pr_number))
 
-print("🔗 Loaded PR context")
+issues = json.load(open("ai_output.json"))
+issues = issues if isinstance(issues, list) else []
 
-# Load processed AI JSON
-data = json.load(open("ai_output.json"))
-issues = data if isinstance(data, list) else []
-
-body_lines = []
-body_lines.append("## 🤖 AI Code Review – Automated but not Heartless\n")
-body_lines.append("Thanks for the PR! Here's what I spotted:\n")
+body = []
+body.append("## 🤖 AI Code Review – Automated but not Heartless")
+body.append("Thanks for the PR! Here’s what I spotted:\n")
 
 if not issues:
-    body_lines.append("🎯 No anti-patterns detected! Clean code, clean conscience.\n")
+    body.append("🎉 No anti-patterns in this diff. Keep it clean 💪\n")
 
-for i, it in enumerate(issues, 1):
+for idx, it in enumerate(issues, 1):
     file = it.get("file", "?")
     line = it.get("line", "?")
     issue = it.get("issue", "Issue detected")
@@ -32,32 +30,26 @@ for i, it in enumerate(issues, 1):
     patch = it.get("code_patch", "")
     risk = it.get("risk", "Unknown")
 
-    emoji = {
-        "Critical": "🛑",
-        "High": "🚧",
-        "Medium": "🟡",
-        "Low": "🟢"
-    }.get(severity, "⚪")
+    emoji = {"Critical":"🛑","High":"🚧","Medium":"🟡","Low":"🟢"}.get(severity,"⚪")
 
-    body_lines.append(f"---\n### {emoji} {i}. {issue}")
-    body_lines.append(f"**Location:** `{file}` line {line}")
-    body_lines.append(f"**Severity:** **{severity}**\n")
-    body_lines.append(f"**Why it matters:** {explanation}\n")
-    body_lines.append(f"**Suggested Improvement:** {fix}\n")
+    body.append(f"---\n### {emoji} {idx}. {issue}")
+    body.append(f"**Location:** `{file}` line {line}")
+    body.append(f"**Severity:** **{severity}**\n")
+    body.append(f"**Why it matters:** {explanation}")
+    body.append(f"**Suggested Fix:** {fix}")
 
     if patch:
-        body_lines.append("```java")
-        body_lines.append(patch)
-        body_lines.append("```")
+        body.append("```java")
+        body.append(patch)
+        body.append("```")
 
-    body_lines.append(f"**Risk if ignored:** {risk}\n")
+    body.append(f"**Risk if ignored:** {risk}\n")
 
-comment_body = "\n".join(body_lines)
+comment = "\n".join(body)
 
-# Trim if too long
-if len(comment_body) > 60000:
-    comment_body = comment_body[:60000] + "\n\n...(trimmed for readability)"
+if len(comment) > 60000:
+    comment = comment[:60000] + "\n\n...(trimmed for readability)"
     print("⚠️ Comment trimmed")
 
-pr.create_issue_comment(comment_body)
+pr.create_issue_comment(comment)
 print("💬 Comment posted successfully")
