@@ -5,5 +5,11 @@ public class Example {
         if (a == b) {
             System.out.println("Equal!");
         }
+
+        Integer m = 1;
+        Integer n = 1;
+        if (m == n) {
+            System.out.println("Equal!");
+        }
     }
 }
