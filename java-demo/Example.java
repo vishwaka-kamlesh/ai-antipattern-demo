@@ -18,5 +18,9 @@ public class Example {
         if (1L == 1L) {
             System.out.println("Equal!");
         }
+
+        if (1L == 1L) {
+            System.out.println("Equal!");
+        }
     }
 }
