@@ -26,9 +26,8 @@ jobs:
           python -m pip install --upgrade pip
           pip install semgrep==1.143.0 requests==2.31.0 PyGithub==2.1.1
 
-      - name: Run Semgrep (diff scan only)
-        run: |
-          semgrep --config semgrep-rules --json --diff-base ${{ github.event.pull_request.base.sha }} > results.json || true
+      - name: Run Semgrep (Diff Optimized)
+        run: python semgrep_diff_scan.py
 
       - name: AI Analysis
         run: python post_to_hf.py
