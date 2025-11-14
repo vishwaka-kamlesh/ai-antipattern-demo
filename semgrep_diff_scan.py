@@ -32,7 +32,7 @@ for file_path in changed_files:
     diff_output = subprocess.getoutput(f"git diff -U0 {BASE_SHA} -- {file_path}")
     print(f"🔍 Raw diff:\n{diff_output}")
 
-    hunks = re.findall(r"@@ \-(\\d+),?\\d* \\+(\\d+),?(\\d*) @@", diff_output)
+    hunks = re.findall(r"@@ \-(\d+),?\d* \+(\d+),?(\d*) @@", diff_output)
     print(f"📌 Hunks found: {hunks}")
 
     if not hunks:
