@@ -17,6 +17,12 @@ public class Example {
         if (s1 == s2) {
             System.out.println("Equal!");
         }
+        
 
+        String s3 = "hello";
+        String s4 = new String("hello");
+        if (s3 == s4) {
+            System.out.println("Equal!");
+        }
     }
 }
