@@ -14,41 +14,42 @@ issues = json.load(open("ai_output.json"))
 issues = issues if isinstance(issues, list) else []
 
 body = []
-body.append("## 🤖 AI Code Review – Automated but not Heartless")
-body.append("Thanks for the PR! Here’s what I spotted:\n")
+body.append("## 🤖 Automated Code Review – Judging You So You Get Better\n")
 
 if not issues:
-    body.append("🎉 No anti-patterns in this diff. Keep it clean 💪\n")
+    body.append("✨ No detectable anti-patterns in this PR. Proud of you... this time.\n")
+else:
+    body.append("🚨 Code police caught something! \n\n")
 
 for idx, it in enumerate(issues, 1):
     file = it.get("file", "?")
     line = it.get("line", "?")
-    issue = it.get("issue", "Issue detected")
+    issue = it.get("issue", "Unknown")
     severity = it.get("severity", "Medium")
     explanation = it.get("explanation", "")
     fix = it.get("detailed_fix", "")
     patch = it.get("code_patch", "")
     risk = it.get("risk", "Unknown")
 
-    emoji = {"Critical":"🛑","High":"🚧","Medium":"🟡","Low":"🟢"}.get(severity,"⚪")
+    emoji = {"Critical": "🛑", "High": "🚧", "Medium": "⚠️", "Low": "ℹ️"}.get(severity, "❓")
 
-    body.append(f"---\n### {emoji} {idx}. {issue}")
-    body.append(f"**Location:** `{file}` line {line}")
-    body.append(f"**Severity:** **{severity}**\n")
-    body.append(f"**Why it matters:** {explanation}")
-    body.append(f"**Suggested Fix:** {fix}")
+    body.append(f"---\n### {emoji} Issue {idx}: {issue}")
+    body.append(f"📍 Location: `{file}` line {line}")
+    body.append(f"🏷 Severity: **{severity}**")
+    body.append(f"🧠 Why it matters:\n> {explanation}")
+    body.append(f"🔧 Suggested Fix:\n> {fix}")
 
     if patch:
-        body.append("```java")
+        body.append("\n```java")
         body.append(patch)
         body.append("```")
 
-    body.append(f"**Risk if ignored:** {risk}\n")
+    body.append(f"☢ Risk if ignored: {risk}\n")
 
 comment = "\n".join(body)
 
 if len(comment) > 60000:
-    comment = comment[:60000] + "\n\n...(trimmed for readability)"
+    comment = comment[:60000] + "\n\n...(trimmed due to size)"
     print("⚠️ Comment trimmed")
 
 pr.create_issue_comment(comment)

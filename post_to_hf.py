@@ -14,12 +14,9 @@ if not token:
 print("📂 Reading Semgrep results...")
 
 try:
-    content = open("results.json", "r", encoding="utf-8").read().strip()
-    if not content:
-        raise Exception("Empty content")
-    data = json.loads(content)
+    data = json.load(open("results.json", "r"))
 except Exception:
-    print("✨ No issues or invalid Semgrep output.")
+    print("✨ No issues or invalid results.json")
     open("ai_output.json", "w").write("[]")
     sys.exit(0)
 
@@ -32,13 +29,23 @@ if not issues:
 print(f"🔍 Sending {len(issues)} issues to AI...")
 
 prompt = f"""
-You are a senior code reviewer.
-Convert issues into JSON array with:
+Analyze Semgrep issues and convert them into a JSON array.
 
-file, line, issue, severity, explanation,
-detailed_fix, code_patch, risk
+Each element must include:
+- file
+- line
+- issue
+- severity
+- explanation
+- detailed_fix
+- code_patch
+- risk
 
-Return ONLY JSON array!
+Rules:
+• Return ONLY valid JSON
+• No markdown
+• No comments
+• No surrounding text
 
 Semgrep issues:
 {json.dumps(issues)}
@@ -47,32 +54,32 @@ Semgrep issues:
 payload = {
     "model": MODEL,
     "messages": [
-        {"role": "system", "content": "You are an expert code reviewer."},
+        {"role": "system", "content": "You are a precise and disciplined code reviewer. Output must be valid JSON only."},
         {"role": "user", "content": prompt},
     ],
     "temperature": 0.0,
+    "max_tokens": 1000,
 }
 
 resp = requests.post(API_URL,
-    headers={"Authorization": f"Bearer {token}"},
-    json=payload, timeout=60
-)
+                     headers={"Authorization": f"Bearer {token}"},
+                     json=payload, timeout=60)
 
 if resp.status_code != 200:
     print("❌ API Error:", resp.text)
     open("ai_output.json", "w").write("[]")
     sys.exit(1)
 
-content = resp.json()["choices"][0]["message"]["content"]
+content = resp.json()["choices"][0]["message"]["content"].strip()
 
-clean = content.strip().strip("```json").strip("```").strip()
-clean = clean.replace("\\\"", "\"")
+if content.startswith("```"):
+    content = content.replace("```", "").replace("json", "").strip()
 
 try:
-    parsed = json.loads(clean)
-except:
-    print("⚠️ AI output was not valid JSON, ignoring.")
+    parsed = json.loads(content)
+except Exception:
+    print("⚠️ AI did not return valid JSON. Saving empty array.")
     parsed = []
 
-json.dump(parsed, open("ai_output.json","w"), indent=2)
+json.dump(parsed, open("ai_output.json", "w"), indent=2)
 print("💾 Saved ai_output.json")
