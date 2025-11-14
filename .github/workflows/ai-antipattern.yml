@@ -36,8 +36,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Semgrep (Diff Optimized Debug)
-        run: python semgrep_diff_scan.py
+      # Replace CLI semgrep with official action
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: semgrep-rules
 
       - name: AI Analysis
         run: python post_to_hf.py
