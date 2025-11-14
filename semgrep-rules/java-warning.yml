@@ -9,12 +9,12 @@ rules:
       $X: java.lang.String
       $Y: java.lang.String
 
-  - id: no-empty-catch
-    message: "Empty catch block detected. Handle or log the exception."
-    languages: [java]
+  - id: java.empty-catch-block
+    message: "Empty catch block found. Add handling or logging."
     severity: ERROR
+    languages: [java]
     pattern: |
-      catch ($E) {
+      catch ($TYPE $VAR) {
       }
 
   - id: no-print-stacktrace
