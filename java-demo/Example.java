@@ -28,5 +28,11 @@ public class Example {
         if (c == d) {
             System.out.println("Equal!");
         }
+
+        String e = "hello";
+        String f = new String("hello");
+        if (e == f) {
+            System.out.println("Equal!");
+        }
     }
 }
