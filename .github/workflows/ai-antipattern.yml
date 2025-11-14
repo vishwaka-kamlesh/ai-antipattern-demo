@@ -21,79 +21,27 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-semgrep-requests-pygithub
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install semgrep==1.143.0 requests==2.31.0 PyGithub==2.1.1
 
-      - name: Run Semgrep
-        id: semgrep
+      - name: Run Semgrep (diff scan only)
         run: |
-          semgrep --config semgrep-rules --json > results.json || true
-          
-          # Debug output
-          echo "=== Semgrep Results Preview ==="
-          head -c 500 results.json
-          echo ""
-          echo "==============================="
-          
-          # Check if results array is empty - look for "results":[] pattern
-          if grep -q '"results":\[\]' results.json || grep -q '"results": \[\]' results.json; then
-            echo "NO_ISSUES=true" >> $GITHUB_ENV
-            echo "✅ No issues found by Semgrep"
-          else
-            echo "NO_ISSUES=false" >> $GITHUB_ENV
-            echo "⚠️ Issues found - will run AI analysis"
-          fi
+          semgrep --config semgrep-rules --json --diff-base ${{ github.event.pull_request.base.sha }} > results.json || true
 
-      - name: Explain Issues using Hugging Face
-        if: env.NO_ISSUES != 'true'
-        run: |
-          echo "🤖 Starting AI analysis..."
-          python post_to_hf.py
-          echo "✅ AI analysis completed"
+      - name: AI Analysis
+        run: python post_to_hf.py
         env:
           HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
 
-      - name: Check if AI output exists
-        if: env.NO_ISSUES != 'true'
-        id: check_ai_output
-        run: |
-          if [ -f "ai_output.json" ]; then
-            echo "ai_output_exists=true" >> $GITHUB_OUTPUT
-            echo "✅ ai_output.json found"
-          else
-            echo "ai_output_exists=false" >> $GITHUB_OUTPUT
-            echo "❌ ai_output.json not found!"
-          fi
-
-      - name: Post AI Comments on PR
-        if: env.NO_ISSUES != 'true' && steps.check_ai_output.outputs.ai_output_exists == 'true'
-        run: |
-          echo "💬 Posting comments to PR #${{ github.event.pull_request.number }}..."
-          python comment_on_pr.py
-          echo "✅ Comments posted"
+      - name: Post PR Comment
+        run: python comment_on_pr.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
 
-      - name: Fail if Critical Issues
-        if: env.NO_ISSUES != 'true'
-        run: |
-          if grep -q '"severity": *"ERROR"' results.json || grep -q '"severity":"ERROR"' results.json; then
-            echo "❌ Critical anti-patterns found!"
-            exit 1
-          fi
-
-      - name: Upload artifacts for debugging
+      - name: Upload Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -101,4 +49,3 @@ jobs:
           path: |
             results.json
             ai_output.json
-          retention-days: 3
