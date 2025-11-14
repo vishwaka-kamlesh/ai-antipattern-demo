@@ -10,18 +10,12 @@ rules:
       $Y: java.lang.String
 
   - id: java.empty-catch-block
-    message: "Empty catch block found. Consider adding logging or handling the exception appropriately."
+    message: "Empty catch block found. Add handling or logging."
+    severity: ERROR
     languages: [java]
-    severity: WARNING
     pattern: |
-      catch ($E) {
-        ...
+      catch ($TYPE $VAR) {
       }
-    pattern-not: |
-      catch ($E) {
-        $S
-      }
-
 
   - id: no-print-stacktrace
     message: "Avoid printStackTrace(); use proper logging."
