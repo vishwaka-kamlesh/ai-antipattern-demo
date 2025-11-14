@@ -14,7 +14,7 @@ issues = json.load(open("ai_output.json"))
 issues = issues if isinstance(issues, list) else []
 
 body = []
-body.append("## 🤖 Automated Code Review: Roasts Included 😎🔥\n")
+body.append("## 🤖 Automated Code Review 😎🔥\n")
 
 if not issues:
     body.append("✨ Surprisingly clean code. I'll allow it.\n")
