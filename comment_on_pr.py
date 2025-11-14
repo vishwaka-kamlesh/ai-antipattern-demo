@@ -6,50 +6,83 @@ token = os.getenv("GITHUB_TOKEN")
 repo_name = os.getenv("GITHUB_REPOSITORY")
 pr_number = os.getenv("PR_NUMBER")
 
+if not token or not repo_name or not pr_number:
+    print("❌ Missing required env vars for GitHub PR comment.")
+    exit(1)
+
 auth = Auth.Token(token)
 gh = Github(auth=auth)
 pr = gh.get_repo(repo_name).get_pull(int(pr_number))
 
-issues = json.load(open("ai_output.json"))
-issues = issues if isinstance(issues, list) else []
+# Load AI output
+try:
+    issues = json.load(open("ai_output.json", "r", encoding="utf-8"))
+    if not isinstance(issues, list):
+        issues = []
+except:
+    print("❌ Failed to load ai_output.json")
+    issues = []
 
 body = []
-body.append("## 🤖 AI Code Review – Automated but not Heartless")
-body.append("Thanks for the PR! Here’s what I spotted:\n")
+body.append("## 🤖 AI Code Review: Roasting With Love 💻🔥\n")
 
 if not issues:
-    body.append("🎉 No anti-patterns in this diff. Keep it clean 💪\n")
+    body.append("✨ All clean here. For now... 😏\n")
+else:
+    body.append("🚨 Code police spotted some suspicious lines 👇\n")
+
+severity_map = {
+    "Critical": "🛑 Critical",
+    "High": "🚧 High",
+    "Medium": "⚠️ Medium",
+    "Low": "ℹ️ Low",
+    "ERROR": "🚧 High"
+}
 
 for idx, it in enumerate(issues, 1):
     file = it.get("file", "?")
     line = it.get("line", "?")
-    issue = it.get("issue", "Issue detected")
-    severity = it.get("severity", "Medium")
-    explanation = it.get("explanation", "")
-    fix = it.get("detailed_fix", "")
+    issue = it.get("issue", "Unknown Issue")
+    sev = it.get("severity", "Medium")
+    severity = severity_map.get(sev, sev)
+    explanation = it.get("explanation", "No explanation provided.")
+    fix = it.get("detailed_fix", "Consider fixing this.")
     patch = it.get("code_patch", "")
-    risk = it.get("risk", "Unknown")
+    risk = it.get("risk", "Unknown risk if ignored.")
 
-    emoji = {"Critical":"🛑","High":"🚧","Medium":"🟡","Low":"🟢"}.get(severity,"⚪")
+    body.append(f"""
+---
+### 🔥 Issue {idx}: {issue}
 
-    body.append(f"---\n### {emoji} {idx}. {issue}")
-    body.append(f"**Location:** `{file}` line {line}")
-    body.append(f"**Severity:** **{severity}**\n")
-    body.append(f"**Why it matters:** {explanation}")
-    body.append(f"**Suggested Fix:** {fix}")
+📍 **Where:** `{file}` line {line}  
+🏷 **Severity:** {severity}  
+
+🧠 **Why it matters**  
+{explanation}
+
+🔧 **How to fix it**  
+{fix}
+""")
 
     if patch:
         body.append("```java")
         body.append(patch)
         body.append("```")
 
-    body.append(f"**Risk if ignored:** {risk}\n")
+    body.append("☢ **Risk if ignored**")
+    body.append(risk)
+    body.append("")
 
 comment = "\n".join(body)
 
+# Avoid GitHub API rejection on long messages
 if len(comment) > 60000:
-    comment = comment[:60000] + "\n\n...(trimmed for readability)"
+    comment = comment[:60000] + "\n\n... (trimmed, blame GitHub)"
     print("⚠️ Comment trimmed")
 
-pr.create_issue_comment(comment)
-print("💬 Comment posted successfully")
+try:
+    pr.create_issue_comment(comment)
+    print("💬 Comment posted successfully")
+except Exception as e:
+    print(f"❌ Failed to post comment: {e}")
+    raise
