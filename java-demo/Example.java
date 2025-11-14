@@ -11,5 +11,12 @@ public class Example {
         if (m == n) {
             System.out.println("Equal!");
         }
+
+        String s1 = "hello";
+        String s2 = new String("hello");
+        if (s1 == s2) {
+            System.out.println("Equal!");
+        }
+
     }
 }
