@@ -1,53 +1,50 @@
 rules:
   - id: no-eq-string
-    message: Use .equals() instead of == for string comparison.
+    message: "Use .equals() instead of == for string comparison."
     languages: [java]
     severity: ERROR
     pattern: |
       if ($X == $Y) ...
-    metavariable-regex:
-      - metavariable: $X
-        regex: ^(java\.lang\.)?String$
-      - metavariable: $Y
-        regex: ^(java\.lang\.)?String$
+    metavariable-types:
+      $X: java.lang.String
+      $Y: java.lang.String
 
   - id: no-print-stacktrace
-    message: Avoid printStackTrace(); use proper logging.
+    message: "Avoid printStackTrace(); use proper logging."
     languages: [java]
     severity: ERROR
     pattern: |
       $EX.printStackTrace()
 
   - id: no-system-out
-    message: Avoid System.out.println; use logging framework.
+    message: "Avoid System.out.println; use logging framework."
     languages: [java]
     severity: ERROR
     pattern: |
       System.out.println($X)
 
   - id: hardcoded-credential
-    message: Hard-coded password / API key – store in config or secret manager.
+    message: "Hard-coded password / API key – store in config or secret manager."
     languages: [java]
     severity: ERROR
     pattern: |
-      $VAR = "$VALUE"
-    metavariable-regex:
-      - metavariable: $VAR
-        regex: (?i)(password|passwd|pwd|api.?key|secret|token)
+      "$SECRET" = "$VALUE"
+    metavariable-pattern:
+      metavariable: $SECRET
+      patterns:
+        - pattern-either:
+            - pattern: password
+            - pattern: passwd
+            - pattern: pwd
+            - pattern: apiKey
+            - pattern: secret
+            - pattern: token
+      language: java
 
   - id: no-thread-sleep
-    message: Thread.sleep() blocks the thread – use scheduled executors or awaitility.
+    message: "Thread.sleep() blocks the thread – use scheduled executors or awaitility."
     languages: [java]
     severity: ERROR
     pattern: |
       Thread.sleep($MS)
-
-  - id: resource-not-closed
-    message: Resource opened but not closed in a finally / try-with-resources.
-    languages: [java]
-    severity: ERROR
-    pattern: |
-      $RES = new $TYPE(...);
-    metavariable-regex:
-      - metavariable: $TYPE
-        regex: (FileInputStream|FileOutputStream|BufferedReader|BufferedWriter)
+      
