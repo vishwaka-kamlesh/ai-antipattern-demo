@@ -9,5 +9,10 @@ public class Example {
         if ("a" == "a") {
             System.out.println("Equal!");
         }
+
+        
+        if ("a" == "a") {
+            System.out.println("Equal!");
+        }
     }
 }
