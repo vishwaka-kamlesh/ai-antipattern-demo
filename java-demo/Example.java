@@ -9,19 +9,5 @@ public class Example {
         if (s1 == s2) {  
             
         }
-
-        // 2. no system out
-        System.out.println("This is a log");
-
-        // 3. no-print-stacktrace
-        try {
-            int x = 1 / 0;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        // 4. no-thread-sleep
-        Thread.sleep(1000);
-
     }
 }
