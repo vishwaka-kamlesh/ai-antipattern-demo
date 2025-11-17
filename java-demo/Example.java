@@ -9,5 +9,8 @@ public class Example {
         if (s1 == s2) {  
             
         }
+
+        // 2. no system out
+        System.out.println("This is a log");
     }
 }
