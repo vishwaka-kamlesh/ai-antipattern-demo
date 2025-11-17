@@ -18,37 +18,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Set up Python with caching
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      # Cache Semgrep binary
-      - name: Cache Semgrep Binary
-        id: cache-semgrep
+      - name: Cache pip dependencies
         uses: actions/cache@v4
+        id: cache-pip
         with:
-          path: /usr/local/bin/semgrep
-          key: semgrep-binary-1.143.1
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
 
-      # Install only essential Python packages (2 packages, ~2-3s first run, ~0.5s cached)
-      - name: Install Python Dependencies
+      # Better: put your deps in a requirements.txt
+      - name: Install Dependencies if needed
         run: |
-          pip install --no-compile --disable-pip-version-check PyGithub==2.1.1 requests==2.31.0
-
-      # Install Semgrep binary only if not cached (~2-3s first run, ~0s cached)
-      - name: Install Semgrep Binary
-        if: steps.cache-semgrep.outputs.cache-hit != 'true'
-        run: |
-          curl -sSL https://github.com/returntocorp/semgrep/releases/download/v1.143.1/semgrep-v1.143.1-ubuntu-generic-x86_64.tgz | tar -xz
-          chmod +x semgrep
-          sudo mv semgrep /usr/local/bin/
-
-      # Verify Semgrep is available
-      - name: Verify Semgrep
-        run: semgrep --version
+          pip install -r requirements.txt
 
       - name: Run Semgrep (Diff Optimized Debug)
         run: python semgrep_diff_scan.py
