@@ -18,6 +18,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Cache Semgrep binary to avoid reinstall every run
+      - name: Cache Semgrep binary
+        uses: actions/cache@v4
+        id: cache-semgrep
+        with:
+          path: ~/.local/bin/semgrep
+          key: semgrep-binary
+
+      # Install Semgrep if cache miss
+      - name: Install Semgrep (only if not cached)
+        if: steps.cache-semgrep.outputs.cache-hit != 'true'
+        run: |
+          curl -sL https://semgrep.dev/install.sh | bash
+
+      # Cache pip (tiny now, only PyGithub)
       - name: Cache pip dependencies
         uses: actions/cache@v4
         id: cache-pip
@@ -27,10 +42,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # Better: put your deps in a requirements.txt
-      - name: Install Dependencies if needed
-        run: |
-          pip install -r requirements.txt
+      - name: Install Python Dependencies
+        run: pip install -r requirements.txt
 
       - name: Run Semgrep (Diff Optimized Debug)
         run: python semgrep_diff_scan.py
