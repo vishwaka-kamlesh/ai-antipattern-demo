@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Cache Semgrep binary to avoid reinstall every run
+      # Cache Semgrep binary
       - name: Cache Semgrep binary
         uses: actions/cache@v4
         id: cache-semgrep
@@ -26,13 +26,13 @@ jobs:
           path: ~/.local/bin/semgrep
           key: semgrep-binary
 
-      # Install Semgrep if cache miss
+      # Install Semgrep if missing
       - name: Install Semgrep (only if not cached)
         if: steps.cache-semgrep.outputs.cache-hit != 'true'
         run: |
-          curl -sL https://semgrep.dev/install.sh | bash
+          curl -sfL https://get.semgrep.dev/install.sh | sh
 
-      # Cache pip (tiny now, only PyGithub)
+      # Cache pip dependencies (only PyGithub now)
       - name: Cache pip dependencies
         uses: actions/cache@v4
         id: cache-pip
@@ -42,6 +42,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      # Install Python deps (lightweight now)
       - name: Install Python Dependencies
         run: pip install -r requirements.txt
 
