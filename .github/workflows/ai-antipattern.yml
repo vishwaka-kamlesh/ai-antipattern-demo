@@ -24,15 +24,23 @@ jobs:
         id: cache-semgrep
         with:
           path: ~/.local/bin/semgrep
-          key: semgrep-binary
+          key: semgrep-binary-v1
 
-      # Install Semgrep if missing
-      - name: Install Semgrep (only if not cached)
+      # Download Semgrep only if not cached
+      - name: Download Semgrep binary if needed
         if: steps.cache-semgrep.outputs.cache-hit != 'true'
         run: |
-          curl -sfL https://get.semgrep.dev/install.sh | sh
+          mkdir -p ~/.local/bin
+          curl -L -o ~/.local/bin/semgrep \
+            https://github.com/returntocorp/semgrep/releases/latest/download/semgrep-linux-amd64
+          chmod +x ~/.local/bin/semgrep
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      # Cache pip dependencies (only PyGithub now)
+      # Ensure Semgrep is in PATH
+      - name: Add Semgrep to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      # Cache pip for PyGithub only
       - name: Cache pip dependencies
         uses: actions/cache@v4
         id: cache-pip
@@ -42,12 +50,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # Install Python deps (lightweight now)
       - name: Install Python Dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Semgrep (Diff Optimized Debug)
-        run: python semgrep_diff_scan.py
+      - name: Run Semgrep scan
+        run: ~/.local/bin/semgrep --version && python semgrep_diff_scan.py
 
       - name: AI Analysis
         run: python post_to_hf.py
