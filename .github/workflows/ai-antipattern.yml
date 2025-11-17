@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Cache the entire Python site-packages directory
+      # Cache the entire Python site-packages directory (shared across PRs)
       - name: Cache Python dependencies
         uses: actions/cache@v4
         id: cache-deps
@@ -29,7 +29,10 @@ jobs:
             ~/.local/bin
           key: ${{ runner.os }}-python-${{ hashFiles('requirements.txt') }}-v1
           restore-keys: |
+            ${{ runner.os }}-python-${{ hashFiles('requirements.txt') }}-
             ${{ runner.os }}-python-
+          enableCrossOsArchive: false
+          lookup-only: false
 
       # Only install if cache miss
       - name: Install Dependencies
