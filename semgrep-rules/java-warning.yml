@@ -120,12 +120,17 @@ rules:
       import $X;
     # detection handled by Semgrep engine if not referenced
 
-  # 15. Magic number (0,1,-1 allowed)
+  # 15. Magic numbers (ignore common loop counters 0/1/-1/10)
   - id: magic-number
-    message: "Magic number detected. Use a named constant."
+    message: "Magic number detected. Use named constant."
     severity: WARNING
     languages: [java]
-    pattern-regex: "(?<![-0-9])(2|3|4|5|6|7|8|9|[1-9][0-9]+)(?![0-9])"
+    pattern-either:
+      - pattern: $X = $NUM
+      - pattern: return $NUM
+    metavariable-pattern:
+      metavariable: $NUM
+      pattern-regex: "^(2|3|4|5|6|7|8|9|[1-9][0-9]+)$"
 
   # 16. Field injection forbidden
   - id: no-field-autowired
