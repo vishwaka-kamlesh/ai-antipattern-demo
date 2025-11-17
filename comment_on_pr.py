@@ -6,51 +6,45 @@ token = os.getenv("GITHUB_TOKEN")
 repo_name = os.getenv("GITHUB_REPOSITORY")
 pr_number = os.getenv("PR_NUMBER")
 
+if not token or not repo_name or not pr_number:
+    print("❌ Missing required environment variables GITHUB_TOKEN / GITHUB_REPOSITORY / PR_NUMBER")
+    exit(1)
+
+print("📥 Loading Semgrep results...")
+try:
+    data = json.load(open("results.json"))
+except:
+    print("⚠️ No results.json found. Exiting.")
+    exit(0)
+
+issues = data.get("results", [])
+
 auth = Auth.Token(token)
 gh = Github(auth=auth)
 pr = gh.get_repo(repo_name).get_pull(int(pr_number))
 
-issues = json.load(open("ai_output.json"))
-issues = issues if isinstance(issues, list) else []
+if not issues:
+    msg = "✨ No anti-patterns detected. Clean code. Respect."
+    pr.create_issue_comment(msg)
+    print("💬 Comment posted: No issues.")
+    exit(0)
 
 body = []
-body.append("## 🤖 Automated Code Review – Judging You So You Get Better\n")
+body.append("## 🚨 Semgrep Code Quality Review\n")
+body.append(f"Detected **{len(issues)}** issue(s) in your PR:\n")
 
-if not issues:
-    body.append("✨ No detectable anti-patterns in this PR. Proud of you... this time.\n")
-else:
-    body.append("🚨 Code police caught something! \n\n")
+for i, issue in enumerate(issues, 1):
+    file = issue.get("path")
+    line = issue.get("start", {}).get("line", "?")
+    rule = issue.get("check_id", "unknown")
+    msg = issue.get("extra", {}).get("message", "No message")
 
-for idx, it in enumerate(issues, 1):
-    file = it.get("file", "?")
-    line = it.get("line", "?")
-    issue = it.get("issue", "Unknown")
-    severity = it.get("severity", "Medium")
-    explanation = it.get("explanation", "")
-    fix = it.get("detailed_fix", "")
-    patch = it.get("code_patch", "")
-    risk = it.get("risk", "Unknown")
-
-    emoji = {"Critical": "🛑", "High": "🚧", "Medium": "⚠️", "Low": "ℹ️"}.get(severity, "❓")
-
-    body.append(f"---\n### {emoji} Issue {idx}: {issue}")
-    body.append(f"📍 Location: `{file}` line {line}")
-    body.append(f"🏷 Severity: **{severity}**")
-    body.append(f"🧠 Why it matters:\n> {explanation}")
-    body.append(f"🔧 Suggested Fix:\n> {fix}")
-
-    if patch:
-        body.append("\n```java")
-        body.append(patch)
-        body.append("```")
-
-    body.append(f"☢ Risk if ignored: {risk}\n")
+    body.append(f"---")
+    body.append(f"### {i}. `{rule}`")
+    body.append(f"📍 {file}:{line}")
+    body.append(f"> {msg}\n")
 
 comment = "\n".join(body)
-
-if len(comment) > 60000:
-    comment = comment[:60000] + "\n\n...(trimmed due to size)"
-    print("⚠️ Comment trimmed")
-
 pr.create_issue_comment(comment)
+
 print("💬 Comment posted successfully")
