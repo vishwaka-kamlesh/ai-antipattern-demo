@@ -18,32 +18,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Cache the entire Python site-packages directory (shared across PRs)
-      - name: Cache Python dependencies
+      - name: Cache pip dependencies
         uses: actions/cache@v4
-        id: cache-deps
+        id: cache-pip
         with:
-          path: |
-            ~/.cache/pip
-            ~/.local/lib/python3.*/site-packages
-            ~/.local/bin
-          key: ${{ runner.os }}-python-${{ hashFiles('requirements.txt') }}-v1
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
           restore-keys: |
-            ${{ runner.os }}-python-${{ hashFiles('requirements.txt') }}-
-            ${{ runner.os }}-python-
-          enableCrossOsArchive: false
-          lookup-only: false
+            ${{ runner.os }}-pip-
 
-      # Only install if cache miss
-      - name: Install Dependencies
-        if: steps.cache-deps.outputs.cache-hit != 'true'
+      # Better: put your deps in a requirements.txt
+      - name: Install Dependencies if needed
         run: |
-          pip install --no-compile --prefer-binary --disable-pip-version-check -r requirements.txt
-
-      # Verify installation (runs even on cache hit)
-      - name: Verify Dependencies
-        run: |
-          python -c "import semgrep; import github; import requests; print('Dependencies loaded successfully')"
+          pip install -r requirements.txt
 
       - name: Run Semgrep (Diff Optimized Debug)
         run: python semgrep_diff_scan.py
