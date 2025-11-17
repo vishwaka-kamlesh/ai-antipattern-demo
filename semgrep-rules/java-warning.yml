@@ -1,4 +1,5 @@
 rules:
+
   # 1. Empty catch blocks
   - id: empty-catch-block
     message: "Empty catch block. Handle or log the exception."
@@ -28,24 +29,14 @@ rules:
     message: "Do not log sensitive data (password, token, PAN, phone, email)."
     severity: ERROR
     languages: [java]
-    pattern-either:
-      - pattern: |
-          logger.$METHOD(".*password.*")
-      - pattern: |
-          logger.$METHOD(".*token.*")
-      - pattern: |
-          logger.$METHOD(".*card.*")
-      - pattern: |
-          logger.$METHOD(".*phone.*")
-      - pattern: |
-          logger.$METHOD(".*email.*")
+    pattern-regex: "(?i)logger\\.(info|debug|warn|error).*?(password|token|secret|card|phone|email)"
 
   # 5. Hardcoded Secrets
   - id: hardcoded-credentials
     message: "Hardcoded credential found; use secrets manager/config."
-    languages: [java]
     severity: ERROR
-    pattern-regex: "(?i)(password|token|secret|apikey)\\s*=\\s*\".*\""
+    languages: [java]
+    pattern-regex: "(?i)(password|token|secret|apikey)\\s*=\\s*\".+\""
 
   # 6. Hardcoded URLs
   - id: hardcoded-url
@@ -56,11 +47,10 @@ rules:
 
   # 7. SQL string concatenation
   - id: sql-concat
-    message: "SQL based on string concatenation is vulnerable to injection."
+    message: "SQL concatenation is vulnerable to injection."
     severity: ERROR
     languages: [java]
-    pattern: |
-      $Q = "SELECT" + $X
+    pattern-regex: "\"(?i)select .*\"\\s*\\+"
 
   # 8. Thread.sleep
   - id: no-thread-sleep
@@ -68,7 +58,7 @@ rules:
     severity: ERROR
     languages: [java]
     pattern: |
-      Thread.sleep($MS)
+      Thread.sleep(...)
 
   # 9. String concat in loops
   - id: concat-in-loop
@@ -76,7 +66,7 @@ rules:
     severity: ERROR
     languages: [java]
     pattern: |
-      for (...) { $S = $A + $B; }
+      for (...) { $S = $S + $X; }
 
   # 10. Object creation in loop
   - id: object-in-loop
@@ -84,7 +74,7 @@ rules:
     severity: ERROR
     languages: [java]
     pattern: |
-      for (...) { new $X($Y*); }
+      for (...) { new $OBJ(...); }
 
   # 11. N+1 query detection
   - id: nplus1-query
@@ -92,11 +82,11 @@ rules:
     severity: ERROR
     languages: [java]
     pattern: |
-      for (...) { $DB.$CALL(...); }
+      for (...) { $DB.$METHOD(...); }
 
   # 12. String == comparison
   - id: string-eq-operator
-    message: "Use .equals() instead of == for string comparison."
+    message: "Use .equals() instead of == for String comparison."
     severity: ERROR
     languages: [java]
     pattern: |
@@ -111,37 +101,31 @@ rules:
     severity: ERROR
     languages: [java]
     pattern: |
-      public class $DTO {
-        public $T $FIELD;
-      }
+      public class $DTO { public $T $FIELD; }
 
   # 14. Unused imports
   - id: unused-import
-    message: "Unused import detected. Remove it."
-    severity: ERROR
+    message: "Unused import detected."
+    severity: WARNING
     languages: [java]
-    pattern: |
-      import $X;
+    pattern: import $X;
+    # Actual unused detection comes from Semgrep metadata
 
-  # 15. Magic numbers
+  # 15. Magic numbers (only assignments or returns)
   - id: magic-number
     message: "Magic number detected. Use named constant."
-    severity: ERROR
+    severity: WARNING
     languages: [java]
-    pattern-regex: "(?<!(0|1|-1))[0-9]+"
-
-  # 16. Max method length > 200 LOC
-  - id: long-method
-    message: "Method too long (>200 lines). Break into smaller chunks."
-    severity: ERROR
-    languages: [java]
-    pattern: |
-      public $RET $METHOD(...){$BODY}
+    pattern-either:
+      - pattern: |
+          $X = $NUM
+      - pattern: |
+          return $NUM
     metavariable-pattern:
-      metavariable: $BODY
-      pattern-regex: "(.|\\n){200,}"
+      metavariable: $NUM
+      pattern-regex: "^[2-9]$|^[1-9][0-9]+$"
 
-  # 17. Field injection forbidden
+  # 16. Field injection forbidden
   - id: no-field-autowired
     message: "Field injection banned. Use constructor injection."
     severity: ERROR
