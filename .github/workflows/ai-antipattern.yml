@@ -1,9 +1,8 @@
-name: AI AntiPattern Review
+name: Semgrep AntiPattern Review
 
 permissions:
   contents: read
   pull-requests: write
-  issues: write
 
 on:
   pull_request:
@@ -20,37 +19,18 @@ jobs:
 
       - name: Cache pip dependencies
         uses: actions/cache@v4
-        id: cache-pip
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
 
-      # Better: put your deps in a requirements.txt
-      - name: Install Dependencies if needed
-        run: |
-          pip install -r requirements.txt
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
 
-      - name: Run Semgrep (Diff Optimized Debug)
+      - name: Run Semgrep
         run: python semgrep_diff_scan.py
 
-      - name: AI Analysis
-        run: python post_to_hf.py
-        env:
-          HF_API_TOKEN: ${{ secrets.HF_API_TOKEN }}
-
-      - name: Post PR Comment
+      - name: Comment on PR
         run: python comment_on_pr.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-
-      - name: Upload Artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-outputs
-          path: |
-            results.json
-            ai_output.json

@@ -1,36 +1,142 @@
-name: Semgrep AntiPattern Review
+rules:
 
-permissions:
-  contents: read
-  pull-requests: write
+  # 1. Empty catch block
+  - id: empty-catch-block
+    message: "Empty catch block. Handle or log the exception."
+    languages: [java]
+    severity: ERROR
+    pattern-regex: "catch\\s*\\([^)]*\\)\\s*\\{\\s*\\}"
 
-on:
-  pull_request:
-    branches: [ main ]
+  # 2. printStackTrace forbidden
+  - id: no-print-stacktrace
+    message: "Avoid printStackTrace(); use proper logging."
+    severity: ERROR
+    languages: [java]
+    pattern: |
+      $E.printStackTrace()
 
-jobs:
-  review:
-    runs-on: ubuntu-latest
+  # 3. System.out.println forbidden
+  - id: no-system-out
+    message: "Avoid System.out.println; use logging framework."
+    severity: ERROR
+    languages: [java]
+    pattern: |
+      System.out.println($X)
 
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  # 4. Logging sensitive data
+  - id: logging-sensitive-data
+    message: "Do not log sensitive data (password, token, PAN, phone, email)."
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern-regex: "(?i)logger\\.[a-zA-Z]+\\(.*password.*\\)"
+      - pattern-regex: "(?i)logger\\.[a-zA-Z]+\\(.*token.*\\)"
+      - pattern-regex: "(?i)logger\\.[a-zA-Z]+\\(.*secret.*\\)"
+      - pattern-regex: "(?i)logger\\.[a-zA-Z]+\\(.*card.*\\)"
+      - pattern-regex: "(?i)logger\\.[a-zA-Z]+\\(.*email.*\\)"
+      - pattern-regex: "(?i)logger\\.[a-zA-Z]+\\(.*phone.*\\)"
 
-      - name: Cache pip dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+  # 5. Hardcoded credentials
+  - id: hardcoded-credentials
+    message: "Hardcoded credential found; use secrets manager or config."
+    languages: [java]
+    severity: ERROR
+    pattern-regex: "(?i)(password|passwd|pwd|token|secret|apikey)\\s*=\\s*\"[^\"]+\""
 
-      - name: Install Dependencies
-        run: pip install -r requirements.txt
+  # 6. Hardcoded URLs
+  - id: hardcoded-url
+    message: "Hardcoded URL detected. Move to config."
+    severity: ERROR
+    languages: [java]
+    pattern-regex: "\"https?://[^\"]+\""
 
-      - name: Run Semgrep
-        run: python semgrep_diff_scan.py
+  # 7. SQL string concatenation
+  - id: sql-concat
+    message: "SQL based on string concatenation is vulnerable to injection."
+    severity: ERROR
+    languages: [java]
+    pattern-regex: "(?i)select.*\\+.*from"
 
-      - name: Comment on PR
-        run: python comment_on_pr.py
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+  # 8. Thread.sleep forbidden
+  - id: no-thread-sleep
+    message: "Thread.sleep() blocks execution. Avoid in backend services."
+    severity: ERROR
+    languages: [java]
+    pattern: |
+      Thread.sleep($MS)
+
+  # 9. String concatenation inside loop
+  - id: concat-in-loop
+    message: "String concatenation inside loop. Use StringBuilder."
+    severity: ERROR
+    languages: [java]
+    pattern-either:
+      - pattern: |
+          for (...) { $S = $A + $B; }
+      - pattern: |
+          for (...) { $S += $X; }
+
+  # 10. Object creation inside loop
+  - id: object-in-loop
+    message: "Object creation inside loop harms performance."
+    severity: ERROR
+    languages: [java]
+    pattern: |
+      for (...) { new $X($Y*); }
+
+  # 11. N+1 query heuristic
+  - id: nplus1-query
+    message: "Possible N+1 query: DB call inside loop."
+    severity: ERROR
+    languages: [java]
+    pattern: |
+      for (...) { $DB.$CALL(...); }
+
+  # 12. String == comparison
+  - id: string-eq-operator
+    message: "Use .equals() instead of == for string comparison."
+    severity: ERROR
+    languages: [java]
+    pattern: |
+      if ($X == $Y) ...
+    metavariable-types:
+      $X: java.lang.String
+      $Y: java.lang.String
+
+  # 13. DTO public field
+  - id: dto-non-private-field
+    message: "DTO fields must be private to prevent accidental access."
+    severity: ERROR
+    languages: [java]
+    pattern: |
+      public class $C { public $T $FIELD; }
+
+  # 14. Unused import
+  - id: unused-import
+    message: "Unused import detected. Remove it."
+    severity: WARNING
+    languages: [java]
+    pattern: |
+      import $X;
+    # detection handled by Semgrep engine if not referenced
+
+  # 15. Magic numbers (ignore common loop counters 0/1/-1/10)
+  - id: magic-number
+    message: "Magic number detected. Use named constant."
+    severity: WARNING
+    languages: [java]
+    pattern-either:
+      - pattern: $X = $NUM
+      - pattern: return $NUM
+    metavariable-pattern:
+      metavariable: $NUM
+      pattern-regex: "^(2|3|4|5|6|7|8|9|[1-9][0-9]+)$"
+
+  # 16. Field injection forbidden
+  - id: no-field-autowired
+    message: "Field injection banned. Use constructor injection."
+    severity: ERROR
+    languages: [java]
+    pattern: |
+      @Autowired
+      private $T $FIELD;
