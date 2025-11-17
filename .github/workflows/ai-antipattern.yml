@@ -18,32 +18,37 @@ jobs:
         with:
           fetch-depth: 0
 
-      # Cache the entire Python site-packages directory (shared across PRs)
-      - name: Cache Python dependencies
-        uses: actions/cache@v4
-        id: cache-deps
+      # Set up Python with caching
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          path: |
-            ~/.cache/pip
-            ~/.local/lib/python3.*/site-packages
-            ~/.local/bin
-          key: ${{ runner.os }}-python-${{ hashFiles('requirements.txt') }}-v1
-          restore-keys: |
-            ${{ runner.os }}-python-${{ hashFiles('requirements.txt') }}-
-            ${{ runner.os }}-python-
-          enableCrossOsArchive: false
-          lookup-only: false
+          python-version: '3.12'
+          cache: 'pip'
 
-      # Only install if cache miss
-      - name: Install Dependencies
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: |
-          pip install --no-compile --prefer-binary --disable-pip-version-check -r requirements.txt
+      # Cache Semgrep binary
+      - name: Cache Semgrep Binary
+        id: cache-semgrep
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/semgrep
+          key: semgrep-binary-1.143.1
 
-      # Verify installation (runs even on cache hit)
-      - name: Verify Dependencies
+      # Install only essential Python packages (2 packages, ~2-3s first run, ~0.5s cached)
+      - name: Install Python Dependencies
         run: |
-          python -c "import semgrep; import github; import requests; print('Dependencies loaded successfully')"
+          pip install --no-compile --disable-pip-version-check PyGithub==2.1.1 requests==2.31.0
+
+      # Install Semgrep binary only if not cached (~2-3s first run, ~0s cached)
+      - name: Install Semgrep Binary
+        if: steps.cache-semgrep.outputs.cache-hit != 'true'
+        run: |
+          curl -sSL https://github.com/returntocorp/semgrep/releases/download/v1.143.1/semgrep-v1.143.1-ubuntu-generic-x86_64.tgz | tar -xz
+          chmod +x semgrep
+          sudo mv semgrep /usr/local/bin/
+
+      # Verify Semgrep is available
+      - name: Verify Semgrep
+        run: semgrep --version
 
       - name: Run Semgrep (Diff Optimized Debug)
         run: python semgrep_diff_scan.py
