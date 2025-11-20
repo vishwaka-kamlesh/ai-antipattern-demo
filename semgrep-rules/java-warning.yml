@@ -25,149 +25,352 @@ rules:
       - pattern: System.out.$ANY(...)
       - pattern: System.err.$ANY(...)
 
-  # 4. Logging sensitive data — very tight, zero false positives
+  # 4. Logging sensitive data — only actual variable interpolation
   - id: logging-sensitive-data
     languages: [java]
     severity: ERROR
-    message: Logging sensitive data (password, token, card, PAN, phone, email). Mask before logging.
-    pattern-regex: |
-      logger\.(trace|debug|info|warn|error)\s*\(.*\b(password|passwd|pwd|token|secret|cardNumber|card_number|pan|mobile|phone|email|cvv|expiry)\b.*\)
+    message: Logging sensitive data. Mask before logging (e.g., maskPassword(password)).
+    pattern-either:
+      # Direct variable logging
+      - pattern: logger.$METHOD(..., $VAR, ...)
+      # String concatenation
+      - pattern: logger.$METHOD("..." + $VAR + ...)
+      # String.format style
+      - pattern: logger.$METHOD(String.format(..., $VAR, ...), ...)
+    metavariable-pattern:
+      metavariable: $VAR
+      pattern-regex: (?i).*(password|passwd|pwd|token|secret|apikey|api_key|clientsecret|client_secret|bearer|cardnumber|card_number|pan|cvv|pin|ssn|social_security).*
 
-  # 5. Hardcoded credentials — catches only real secrets ≥8 chars
+  # 5. Hardcoded credentials — real secrets only, exclude test/example patterns
   - id: hardcoded-credentials
     languages: [java]
     severity: ERROR
     message: Hardcoded secret detected. Move to Vault / Config / Secrets Manager.
-    pattern-regex: |
-      (?i)(password|passwd|pwd|secret|token|api[_-]?key|client[_-]?secret|bearer)\s*[:=]\s*"[^"{}\s]{8,}"
+    patterns:
+      - pattern-regex: (?i)(password|passwd|pwd|secret|token|api[_-]?key|client[_-]?secret|bearer)\s*[:=]\s*"[^"{}\s]{8,}"
+      - pattern-not-regex: '(?i)(your_|example|placeholder|dummy|test_|fake_|sample|xxx|todo|change|replace)'
 
-  # 6. Hardcoded URLs — excludes common false positives
+  # 6. Hardcoded URLs — only connection/config assignments, exclude docs/examples
   - id: hardcoded-url
     languages: [java]
     severity: ERROR
-    message: Hardcoded URL. Move to @Value or application.yml.
-    pattern-regex: |
-      "https?://(?!schemas\.android\.com|localhost|127\.0\.0\.1|0\.0\.0\.0)[a-zA-Z0-9_.-]+
-    # Excludes XML schemas and local dev URLs
-
-  # 7. SQL string concatenation — only when building actual queries
-  - id: sql-concat
-    languages: [java]
-    severity: ERROR
-    message: SQL string concatenation → SQL injection risk. Use QueryDSL or parameters.
+    message: Hardcoded URL detected. Move to @Value or application.yml/properties.
     patterns:
       - pattern-either:
-          - pattern: "$Q + $V"
-          - pattern: "$Q += $V"
+          # Variable assignment
+          - pattern: |
+              $TYPE $VAR = "https://...";
+          # Field initialization
+          - pattern: |
+              $MODIFIER $TYPE $VAR = "https://...";
+          # Method return
+          - pattern: |
+              return "https://...";
       - metavariable-pattern:
-          metavariable: $Q
-          pattern-regex: "(?i)(select|insert|update|delete|from|where|order by|group by)"
+          metavariable: $VAR
+          pattern-regex: (?i).*(url|endpoint|host|base|uri|address|service).*
+      # Exclude safe domains
+      - pattern-not-regex: '(?i)(localhost|127\.0\.0\.1|0\.0\.0\.0|example\.com|test\.|docs\.|schemas\.|xmlns)'
 
-  # 8. Thread.sleep — allowed only in test packages
+  # 7. SQL injection via string concatenation — only actual query execution
+  - id: sql-injection-concat
+    languages: [java]
+    severity: ERROR
+    message: SQL injection risk via string concatenation. Use QueryDSL, JPA Criteria, or PreparedStatement parameters.
+    pattern-either:
+      # JDBC execute methods
+      - pattern: $STMT.executeQuery($Q + ...)
+      - pattern: $STMT.execute($Q + ...)
+      - pattern: $STMT.executeUpdate($Q + ...)
+      # JdbcTemplate
+      - pattern: $JDBC.query($Q + ...)
+      - pattern: $JDBC.update($Q + ...)
+      - pattern: $JDBC.queryForObject($Q + ...)
+      - pattern: $JDBC.queryForList($Q + ...)
+      # EntityManager native query
+      - pattern: $EM.createNativeQuery($Q + ...)
+    metavariable-pattern:
+      metavariable: $Q
+      pattern-regex: (?i).*(select|insert|update|delete|from|where).*
+
+  # 8. Thread.sleep — blocks container threads
   - id: no-thread-sleep
     languages: [java]
     severity: ERROR
-    message: Thread.sleep() blocks container threads. Use Testcontainers wait strategies or ScheduledExecutor.
-    patterns:
-      - pattern: Thread.sleep(...)
-      - pattern-not-inside: |
-          package ...test;
-          ...
+    message: Thread.sleep() blocks container threads. Use ScheduledExecutorService, @Scheduled, or async processing.
+    pattern: Thread.sleep(...)
 
-  # 9. String concatenation in loop — precise
-  - id: concat-in-loop
+  # 9. String concatenation in loop — creates excessive objects
+  - id: string-concat-in-loop
     languages: [java]
     severity: ERROR
-    message: String concatenation in loop creates many temporary objects. Use StringBuilder or collect + join.
-    pattern-either:
+    message: String concatenation in loop creates many temporary objects. Use StringBuilder or Stream.collect(Collectors.joining()).
+    patterns:
+      - pattern: $S += $X
       - pattern-inside: |
-          for ($T $V : $COL) { ... }
-          $S += $X;
-      - pattern-inside: |
-          while (...) { ... }
-          $S += $X;
+          for (...) {
+            ...
+          }
+      - metavariable-type:
+          metavariable: $S
+          type: java.lang.String
 
-  # 10. Object creation in loop — ignores common safe cases
-  - id: object-in-loop
+  # 10. Expensive object creation in loop — focused on known heavy objects
+  - id: expensive-object-in-loop
     languages: [java]
     severity: WARNING
-    message: Object creation inside loop. Consider moving outside if possible.
+    message: Creating expensive objects inside loop. Consider reusing or moving outside loop.
     patterns:
       - pattern-inside: |
-          for (...) { ... }
-          new $TYPE(...);
-      - pattern-not: new StringBuilder(...)
-      - pattern-not: new ArrayList<>()
+          for (...) {
+            ...
+          }
+      - pattern-either:
+          - pattern: new SimpleDateFormat(...)
+          - pattern: new DateFormat(...)
+          - pattern: new Pattern.compile(...)
+          - pattern: Pattern.compile(...)
+          - pattern: new ObjectMapper(...)
+          - pattern: new Gson(...)
+          - pattern: new JsonParser(...)
+          - pattern: new SAXParser(...)
+          - pattern: new DocumentBuilder(...)
+          - pattern: new XPath(...)
 
-  # 11. N+1 query heuristic — only repository/JdbcTemplate calls
-  - id: nplus1-query
+  # 11. N+1 query — repository calls and lazy loading in loops
+  - id: nplus1-query-detection
     languages: [java]
     severity: ERROR
-    message: Potential N+1 query: database call inside loop.
+    message: Potential N+1 query. Use JOIN FETCH, @EntityGraph, or batch fetching.
     patterns:
       - pattern-inside: |
-          for (...) { ... }
-          $REPO.$METHOD(...);
+          for ($E : $LIST) {
+            ...
+          }
+      - pattern-either:
+          # Repository/DAO calls
+          - pattern: $REPO.$METHOD(...)
+          # Entity getter calls (lazy loading)
+          - pattern: $E.get$RELATION()
       - metavariable-pattern:
           metavariable: $REPO
-          pattern-either:
-            - pattern-regex: ".*Repository"
-            - pattern-regex: ".*Repo"
-            - pattern: $JDBC
+          pattern-regex: .*(Repository|Repo|Dao|DAO)
 
-  # 12. String == comparison — type-safe
-  - id: string-eq-operator
+  # 12. String comparison with == operator
+  - id: string-equals-operator
     languages: [java]
     severity: ERROR
-    message: Use .equals() for String comparison, not ==.
-    pattern: |
-      $X == $Y
-    metavariable-type:
-      $X: java.lang.String
-      $Y: java.lang.String
+    message: Use .equals() or .equalsIgnoreCase() for String comparison, not == or !=.
+    pattern-either:
+      - pattern: $STR == "..."
+      - pattern: "..." == $STR
+      - pattern: $STR != "..."
+      - pattern: "..." != $STR
+      - pattern: $STR1 == $STR2
+      - pattern: $STR1 != $STR2
 
-  # 13. DTO public fields — only in classes named DTO/Spec/Request/Response
-  - id: dto-non-private-field
+  # 13. DTO/Request/Response with public fields — should be private
+  - id: dto-public-fields
     languages: [java]
     severity: ERROR
-    message: DTO fields must be private. Use getters/setters or records.
+    message: DTO/Request/Response fields must be private. Use getters/setters, Lombok, or Java records.
     patterns:
-      - pattern: public $T $FIELD;
+      - pattern: |
+          public $T $FIELD;
       - pattern-inside: |
-          class $NAME ... { ... }
+          class $NAME {
+            ...
+          }
       - metavariable-pattern:
           metavariable: $NAME
-          pattern-regex: "(?i)(DTO|Request|Response|Spec|VO)$"
+          pattern-regex: .*(DTO|Dto|Request|Response|Spec|Specification|VO|Model)$
+      # Exclude constants
+      - pattern-not: |
+          public static final $T $FIELD = ...;
 
-  # 14. Unused imports — let Semgrep handle natively (no pattern needed)
-  - id: unused-import
+  # 14. Magic numbers — only in assignments, exclude common values
+  - id: magic-numbers
     languages: [java]
     severity: WARNING
-    message: Remove unused import.
-    pattern: |
-      import $IMPL;
+    message: Replace magic number with named constant (static final) for maintainability.
+    patterns:
+      - pattern-either:
+          # Field assignment
+          - pattern: |
+              $VAR = $N;
+          # Method parameter
+          - pattern: |
+              $METHOD($N)
+      - metavariable-pattern:
+          metavariable: $N
+          pattern-regex: ^(1[1-9]|[2-9][0-9]|[1-9][0-9]{2,})$
+      # Exclude common HTTP status codes
+      - pattern-not: $VAR = 200;
+      - pattern-not: $VAR = 201;
+      - pattern-not: $VAR = 400;
+      - pattern-not: $VAR = 401;
+      - pattern-not: $VAR = 403;
+      - pattern-not: $VAR = 404;
+      - pattern-not: $VAR = 500;
+      - pattern-not: $VAR = 502;
+      - pattern-not: $VAR = 503;
+      # Exclude common port numbers
+      - pattern-not: $VAR = 8080;
+      - pattern-not: $VAR = 8443;
+      - pattern-not: $VAR = 3000;
+      - pattern-not: $VAR = 5432;
+      - pattern-not: $VAR = 3306;
+      # Exclude already constants
+      - pattern-not-inside: |
+          static final $TYPE $CONST = ...;
+      # Exclude enum constructors
+      - pattern-not-inside: |
+          enum $E {
+            ...
+          }
 
-  # 15. Magic numbers — excludes 0, 1, -1, 2–10 in common contexts
-  - id: magic-number
-    languages: [java]
-    severity: WARNING
-    message: Replace magic number with named constant.
-    pattern-either:
-      - pattern: $X = $N;
-      - pattern: return $N;
-      - pattern: $N$OP
-    metavariable-pattern:
-      metavariable: $N
-      pattern-regex: ^(1[1-9]|[2-9][0-9]+|[1-9][0-9]{2,})$  # 11 and above
-
-  # 16. Field injection — allows @Value, blocks @Autowired
-  - id: no-field-autowired
+  # 15. Field injection with @Autowired — use constructor injection
+  - id: no-field-injection
     languages: [java]
     severity: ERROR
-    message: Field injection with @Autowired is banned. Use constructor injection.
+    message: Field injection with @Autowired is discouraged. Use constructor injection for better testability and immutability.
     patterns:
       - pattern: |
           @Autowired
-          $MODIFIER $TYPE $FIELD;
+          $TYPE $FIELD;
+      # Allow @Value for configuration
       - pattern-not: |
-          @Value
+          @Value(...)
+          @Autowired
+          $TYPE $FIELD;
+      - pattern-not: |
+          @Autowired
+          @Value(...)
+          $TYPE $FIELD;
+
+  # 17. Resource leak — missing try-with-resources
+  - id: resource-leak
+    languages: [java]
+    severity: ERROR
+    message: Resource leak detected. Use try-with-resources for auto-closing (InputStream, Connection, Statement, Reader, etc.).
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $RES = new FileInputStream(...);
+          - pattern: |
+              $RES = new FileOutputStream(...);
+          - pattern: |
+              $RES = new FileReader(...);
+          - pattern: |
+              $RES = new FileWriter(...);
+          - pattern: |
+              $RES = new BufferedReader(...);
+          - pattern: |
+              $RES = $CONN.createStatement();
+          - pattern: |
+              $RES = $CONN.prepareStatement(...);
+      # Exclude try-with-resources
+      - pattern-not-inside: |
+          try ($RES = ...) {
+            ...
+          }
+      # Exclude when immediately returned (caller's responsibility)
+      - pattern-not-inside: |
+          return new ...;
+
+  # 18. Null check after dereferencing — logic error
+  - id: null-check-after-dereference
+    languages: [java]
+    severity: ERROR
+    message: Null check after dereferencing variable. Move null check before usage to avoid NullPointerException.
+    patterns:
+      - pattern: |
+          $VAR.$METHOD(...);
+          ...
+          if ($VAR == null) {
+            ...
+          }
+
+  # 19. Inefficient isEmpty() check
+  - id: inefficient-empty-check
+    languages: [java]
+    severity: WARNING
+    message: Use .isEmpty() instead of .size() == 0 or .length() == 0 for better readability and performance.
+    pattern-either:
+      - pattern: $COLL.size() == 0
+      - pattern: $COLL.size() > 0
+      - pattern: $STR.length() == 0
+      - pattern: $STR.length() > 0
+
+  # 20. Double-checked locking without volatile — concurrency bug
+  - id: double-checked-locking-no-volatile
+    languages: [java]
+    severity: ERROR
+    message: Double-checked locking requires 'volatile' keyword to work correctly in Java. Make singleton field volatile.
+    patterns:
+      - pattern-inside: |
+          class $C {
+            ...
+            $TYPE $INSTANCE;
+            ...
+          }
+      - pattern: |
+          if ($INSTANCE == null) {
+            synchronized (...) {
+              if ($INSTANCE == null) {
+                $INSTANCE = ...;
+              }
+            }
+          }
+      - pattern-not-inside: |
+          class $C {
+            ...
+            volatile $TYPE $INSTANCE;
+            ...
+          }
+
+  # 21. Comparison with Boolean.TRUE/FALSE using ==
+  - id: boolean-comparison-with-equals
+    languages: [java]
+    severity: ERROR
+    message: Use .equals() when comparing with Boolean.TRUE or Boolean.FALSE, not ==.
+    pattern-either:
+      - pattern: $VAR == Boolean.TRUE
+      - pattern: $VAR == Boolean.FALSE
+      - pattern: Boolean.TRUE == $VAR
+      - pattern: Boolean.FALSE == $VAR
+
+  # 22. Using Arrays.asList on primitive arrays
+  - id: arrays-aslist-primitive
+    languages: [java]
+    severity: ERROR
+    message: Arrays.asList() doesn't work as expected with primitive arrays. Use IntStream, LongStream, or manual conversion.
+    pattern-either:
+      - pattern: Arrays.asList($ARR)
+    metavariable-pattern:
+      metavariable: $ARR
+      pattern-regex: .*(int\[\]|long\[\]|double\[\]|float\[\]|byte\[\]|short\[\]|char\[\]|boolean\[\]).*
+
+  # 23. Modifying collection while iterating
+  - id: modify-collection-while-iterating
+    languages: [java]
+    severity: ERROR
+    message: Modifying collection during iteration causes ConcurrentModificationException. Use Iterator.remove() or collect to new collection.
+    patterns:
+      - pattern-inside: |
+          for ($E : $COLL) {
+            ...
+          }
+      - pattern-either:
+          - pattern: $COLL.remove(...)
+          - pattern: $COLL.add(...)
+
+  # 24. BigDecimal created from double
+  - id: bigdecimal-from-double
+    languages: [java]
+    severity: ERROR
+    message: Creating BigDecimal from double loses precision. Use BigDecimal.valueOf() or String constructor instead.
+    pattern: new BigDecimal($D)
+    metavariable-pattern:
+      metavariable: $D
+      pattern-regex: .*\d+\.\d+.*
