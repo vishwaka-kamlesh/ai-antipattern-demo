@@ -117,12 +117,12 @@ gh = Github(auth=auth)
 pr = gh.get_repo(repo_name).get_pull(int(pr_number))
 
 if not issues:
-    pr.create_issue_comment("✨ Zero issues. Your code is cleaner than my existential crisis.")
+    pr.create_issue_comment("✨ Zero issues. Your code is cleaner than ever.")
     exit(0)
 
 body = [
-    "## 🚨 Semgrep Automated Roast Review",
-    "Scans code faster than reviewers run to coffee.\n"
+    "## 🚨 Code Police",
+    "We’ll arrest the bugs haunting your dreams. So you can sleep peacefully at night😴🐛"
 ]
 
 for i, issue in enumerate(issues, 1):
@@ -134,38 +134,30 @@ for i, issue in enumerate(issues, 1):
     file = issue.get("path")
     line = issue.get("start", {}).get("line", "?")
     severity = meta.get("severity", "warning").upper()
-    
+
+    # Try every possible way to extract snippet
     snippet = ""
 
-    # Preferred: Semgrep raw code snippet
     if "lines" in meta and meta["lines"]:
         snippet = meta["lines"].strip()
 
-    # Fallback: metavars sometimes hold snippet fragments
     elif "metavars" in meta:
         for mv in meta["metavars"].values():
             if "abstract_content" in mv:
                 snippet = mv["abstract_content"].strip()
-            break
+                break
 
-    # Ultra fallback: include the message if code snippet missing
-    if not snippet:
-        snippet = msg.replace("\n", " ").strip()
+    if not snippet and file and isinstance(line, int):
+        try:
+            with open(file, "r", encoding="utf-8") as src:
+                snippet = src.readlines()[line - 1].rstrip()
+        except:
+            snippet = ""
 
     mapping = SASSY_RULE_GUIDE.get(rule, {})
-
-    why = (
-        meta.get("metadata", {}).get("impact") or
-        meta.get("metadata", {}).get("category") or
-        mapping.get("why") or
-        "This practice can cause maintainability or security issues."
-    )
-
+    why = mapping.get("why", "This practice can cause maintainability or security issues.")
     fix = mapping.get("fix", "Apply a suitable fix for this issue.")
     roast = mapping.get("roast") or ROASTS[i % len(ROASTS)]
-
-    if snippet.lower() == "requires login":
-        snippet = ""
 
     body.append("---")
     body.append(f"### 🔹 {i}. `{rule}` ({severity})")
@@ -173,11 +165,12 @@ for i, issue in enumerate(issues, 1):
     body.append(f"📌 Why this is bad: {why}")
     body.append(f"**Semgrep said:** {msg}")
 
-    if snippet:
-        body.append(f"\n```diff\n- {snippet}\n```\n")
+    body.append("\n```diff")
+    body.append(f"- {snippet or '[source unavailable]'}")
+    body.append("```\n")
 
     body.append(f"**How to fix:**\n```diff\n+ {fix}\n```")
-    body.append(f"**Roast:** 🔥 {roast}\n")
+    body.append(f"{roast}\n")
 
 pr.create_issue_comment("\n".join(body))
 print("💬 Posted stylish review to PR like a legend.")
