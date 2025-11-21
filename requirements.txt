@@ -1,1 +1,2 @@
 PyGithub
+semgrep==1.144.0

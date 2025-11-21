@@ -13,7 +13,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout full history
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -23,17 +24,16 @@ jobs:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
 
-      - name: Install Dependencies
+      - name: Install Python deps
         run: pip install -r requirements.txt
 
-      # Install Semgrep CLI so your diff script works
-      - name: Install Semgrep
-        run: pip install "semgrep==1.95.0"
+      - name: Install Semgrep CLI (v1 stable)
+        run: pip install "semgrep==1.144.0"
 
-      - name: Run Semgrep Diff Scanner
+      - name: Diff scan only changed lines
         run: python semgrep_diff_scan.py
 
-      - name: Comment on PR
+      - name: Comment on PR like a sassy bot
         run: python comment_on_pr.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

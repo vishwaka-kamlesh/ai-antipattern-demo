@@ -47,7 +47,8 @@ for file_path in changed_files:
             tmp.write(chunk)
             tmp_path = tmp.name
 
-        cmd = ["semgrep", "--config=p/ci", "--json", tmp_path]
+        # 🔥 IMPORTANT FIX: use your custom rules.yaml
+        cmd = ["semgrep", "--config=rules.yaml", "--json", tmp_path]
 
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
