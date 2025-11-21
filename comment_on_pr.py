@@ -2,130 +2,157 @@ import os
 import json
 from github import Github, Auth
 
-# Rule-specific fixes & roasts (triple-quoted to avoid quote issues)
 SASSY_RULE_GUIDE = {
     "empty-catch-block": {
-        "fix": """log or rethrow the exception.""",
-        "roast": """Ignoring errors doesn't make them go away."""
+        "fix": "Log the exception or rethrow it",
+        "roast": "Just pretending nothing happened? Cute.",
+        "why": "Swallowed exceptions hide real failures and break debugging."
     },
     "no-print-stacktrace": {
-        "fix": """logger.error("Unexpected error", e)""",
-        "roast": """Your console isn’t a bug tracker bro."""
+        "fix": "Use logger.error(\"Unexpected error\", e)",
+        "roast": "printStackTrace is the caveman’s debugger.",
+        "why": "Leaks stack traces and ignores logging standards."
     },
     "no-system-out": {
-        "fix": """logger.info("message")""",
-        "roast": """System.out is only okay in first semester Java."""
+        "fix": "Use SLF4J logger",
+        "roast": "System.out belongs in hostel lab practicals.",
+        "why": "Bypasses logging pipelines and breaks production observability."
     },
     "logging-sensitive-data": {
-        "fix": """mask or redact sensitive data before logging.""",
-        "roast": """That's one way to leak secrets into logs."""
+        "fix": "Mask or redact secrets before logging",
+        "roast": "Why not send your passwords to public Slack too?",
+        "why": "PII exposure violates security and compliance."
     },
     "hardcoded-credentials": {
-        "fix": """move secrets into environment or vault.""",
-        "roast": """Hardcoding secrets is hacker fan service."""
+        "fix": "Move secrets to environment/secret manager",
+        "roast": "Hackers be like: appreciate you bro.",
+        "why": "Credentials in code spread through repos and logs forever."
     },
     "hardcoded-url": {
-        "fix": """inject URLs via configuration.""",
-        "roast": """DevOps will cry every deployment."""
+        "fix": "Use @Value or config properties for URLs",
+        "roast": "Hardcoding endpoints? Vendor lock-in speedrun.",
+        "why": "Changing environments breaks if URLs stay embedded in code."
     },
     "sql-injection-concat": {
-        "fix": """use prepared statements.""",
-        "roast": """SQL injection speedrun unlocked."""
+        "fix": "Use prepared statements",
+        "roast": "One input field away from fame in a CVE database.",
+        "why": "Attackers can inject malicious SQL into concatenated queries."
     },
     "no-thread-sleep": {
-        "fix": """use async or scheduled execution.""",
-        "roast": """Thread.sleep() blocks threads like traffic jams."""
+        "fix": "Use async scheduler or executor",
+        "roast": "Freezing threads like you freeze in stand-ups.",
+        "why": "Blocks thread pools and wrecks latency under load."
     },
     "string-concat-in-loop": {
-        "fix": """use StringBuilder or joining().""",
-        "roast": """GC pressure intensifies."""
+        "fix": "Use StringBuilder or Stream.joining",
+        "roast": "Temporary string objects filing harassment complaints.",
+        "why": "Creates tons of temporary objects, hurting performance."
     },
     "expensive-object-in-loop": {
-        "fix": """reuse object outside loop.""",
-        "roast": """New objects every iteration? Living rich."""
+        "fix": "Move heavyweight object creation outside the loop",
+        "roast": "CPU fan sounds like a rocket launch now.",
+        "why": "Repeated expensive initialization wastes CPU and memory."
     },
     "nplus1-query-repository": {
-        "fix": """use JOIN FETCH or batch fetching.""",
-        "roast": """Your DB is not a personal diary."""
+        "fix": "Use JOIN FETCH, EntityGraph or batch fetching",
+        "roast": "Database screaming: ‘Why call me 90 times for a list?’",
+        "why": "Dozens of extra DB round trips destroy query performance."
     },
     "nplus1-query-lazy-loading": {
-        "fix": """prefetch using @EntityGraph or JOIN FETCH.""",
-        "roast": """Lazy loading, lazy performance."""
+        "fix": "Use eager fetching strategies",
+        "roast": "Lazy loading so lazy it overworks the DB.",
+        "why": "Each loop iteration triggers additional queries."
     },
     "string-equals-operator": {
-        "fix": """use .equals() instead.""",
-        "roast": """This isn’t JavaScript — == won’t rescue you."""
+        "fix": "Use .equals() for string value comparison",
+        "roast": "Java isn’t JavaScript and == isn’t your friend.",
+        "why": "== compares references, causing hidden logic bugs."
     },
     "dto-public-fields": {
-        "fix": """use private fields with accessors.""",
-        "roast": """Encapsulation left the chat."""
+        "fix": "Make fields private with getters/setters",
+        "roast": "Public fields? Your encapsulation got robbed.",
+        "why": "Leaks internal state and breaks class invariants."
     },
     "magic-numbers": {
-        "fix": """use a named constant.""",
-        "roast": """Random numbers aren’t documentation."""
+        "fix": "Replace literal with a named constant",
+        "roast": "Is 397 your lucky number or a cry for help?",
+        "why": "Unexplained constants weaken readability and maintainability."
     },
     "no-field-injection": {
-        "fix": """use constructor injection.""",
-        "roast": """Testing shouldn't feel like black magic."""
+        "fix": "Use constructor injection",
+        "roast": "@Autowired fields ruin testability like an ex ruins peace.",
+        "why": "Constructor injection enforces immutability and clear deps."
     },
     "catch-generic-exception": {
-        "fix": """catch scoped exceptions instead.""",
-        "roast": """Catching everything means fixing nothing."""
+        "fix": "Catch specific exception types",
+        "roast": "Catching Exception is like catching Covid with a paper mask.",
+        "why": "Masks real errors and prevents meaningful handling."
     },
     "resource-leak": {
-        "fix": """use try-with-resources.""",
-        "roast": """Leaks like a toddler with juice."""
+        "fix": "Use try-with-resources properly",
+        "roast": "Connections leaking faster than your weekend plans.",
+        "why": "Unclosed streams and DB handles exhaust memory/thread pools."
     },
     "null-check-after-dereference": {
-        "fix": """check for null first.""",
-        "roast": """NPE speedrun any% PB attempt."""
+        "fix": "Check for null *before* calling methods",
+        "roast": "NPE speedrun world record attempt?",
+        "why": "The null check is useless after dereferencing the variable."
     },
     "inefficient-empty-check": {
-        "fix": """use .isEmpty().""",
-        "roast": """Readability suffers in silence."""
+        "fix": "Use .isEmpty() instead",
+        "roast": "This condition is more bloated than your backlog.",
+        "why": "Simplifies checks and avoids extra operations."
     },
     "double-checked-locking-no-volatile": {
-        "fix": """mark instance volatile.""",
-        "roast": """Thread safety shouldn’t be optional."""
+        "fix": "Add volatile keyword to instance field",
+        "roast": "Multi-threading without volatile… daring.",
+        "why": "Without volatile, state may never become visible to threads."
     },
     "boolean-comparison-with-equals": {
-        "fix": """use .equals(Boolean.TRUE/FALSE).""",
-        "roast": """Comparing booleans like comparing apples and chairs."""
+        "fix": "Use Boolean.TRUE.equals(var)",
+        "roast": "== for Boolean? QA thanks you for the extra work.",
+        "why": "Avoids reference comparison and inconsistent truth tests."
     },
     "arrays-aslist-primitive": {
-        "fix": """use IntStream/boxed conversion.""",
-        "roast": """Primitive arrays refuse to socialize."""
+        "fix": "Use IntStream/boxed or manual conversion",
+        "roast": "Primitive arrays didn’t ask to be treated as objects.",
+        "why": "Arrays.asList(primitive[]) treats whole array as one element."
     },
     "modify-collection-while-iterating-remove": {
-        "fix": """use Iterator.remove().""",
-        "roast": """ℹ️ ConcurrentModificationException entered the chat."""
+        "fix": "Use Iterator.remove()",
+        "roast": "ConcurrentModificationException just waiting to erupt.",
+        "why": "Removing during iteration corrupts collection state."
     },
     "modify-collection-while-iterating-add": {
-        "fix": """collect outside then modify.""",
-        "roast": """Adding chaos one loop at a time."""
+        "fix": "Collect separately or use iterator",
+        "roast": "Chaos-engineering by accident.",
+        "why": "Adding during iteration triggers concurrency faults."
     },
     "bigdecimal-from-double": {
-        "fix": """use BigDecimal.valueOf().""",
-        "roast": """Precision is not optional in finance."""
-    }
+        "fix": "Use BigDecimal.valueOf(double)",
+        "roast": "Loss of precision like losing socks in laundry.",
+        "why": "double → BigDecimal introduces rounding errors."
+    },
 }
 
-# Environment variables
+ROASTS = [
+    "Readable code? Not your hobby clearly.",
+    "Even ransomware has better structure.",
+    "Future devs will write curses in the comments.",
+    "Architecturally unstable like your sleep cycle.",
+]
+
+# Env vars
 token = os.getenv("GITHUB_TOKEN")
 repo_name = os.getenv("GITHUB_REPOSITORY")
 pr_number = os.getenv("PR_NUMBER")
 
 if not token or not repo_name or not pr_number:
-    print("❌ Missing required environment variables GITHUB_TOKEN / GITHUB_REPOSITORY / PR_NUMBER")
+    print("❌ Missing environment variables!")
     exit(1)
 
-print("📥 Loading Semgrep results...")
-try:
-    data = json.load(open("results.json"))
-except:
-    print("⚠️ No results.json found. Exiting.")
-    exit(0)
-
+print("📥 Reading Semgrep results...")
+data = json.load(open("results.json"))
 issues = data.get("results", [])
 
 auth = Auth.Token(token)
@@ -133,39 +160,52 @@ gh = Github(auth=auth)
 pr = gh.get_repo(repo_name).get_pull(int(pr_number))
 
 if not issues:
-    pr.create_issue_comment("✨ No issues found. Code is smelling like fresh refactor!")
+    pr.create_issue_comment("✨ So clean. I’m suspicious.")
     exit(0)
 
 body = [
-    "## 🚨 Semgrep Review with Style",
-    "Automated code review with actionable suggestions and minimal tears.\n"
+    "## 🚨Code Police",
+    "We catch the bugs you create, so you don't have to wake at 2 am debugging the production.\n"
 ]
 
 for i, issue in enumerate(issues, 1):
-    rule = issue.get("check_id", "unknown")
-    meta = SASSY_RULE_GUIDE.get(rule, {})
-
+    raw_rule = issue.get("check_id", "unknown")
+    rule = raw_rule.lower().replace("semgrep-rules.", "")
     file = issue.get("path")
-    line = issue.get("start", {}).get("line", "?")
-    msg = issue.get("extra", {}).get("message", "Fix required.")
     severity = issue.get("extra", {}).get("severity", "warning").upper()
+    msg = issue.get("extra", {}).get("message", "Fix required.")
+    line = issue.get("start", {}).get("line", "?")
 
-    snippet = issue.get("extra", {}).get("lines", "").strip()
-    fix_snippet = meta.get("fix", "Please apply proper fix here.")
-    roast_text = meta.get("roast", "You can improve this part.")
+    snippet = ""
+    if file and isinstance(line, int):
+        try:
+            with open(file, "r", encoding="utf-8") as src:
+                snippet = src.readlines()[line - 1].rstrip()
+        except:
+            snippet = "[Couldn't extract source line]"
+
+    mapping = SASSY_RULE_GUIDE.get(rule, {})
+    why = mapping.get("why", "This hurts maintainability and humans.")
+    fix = mapping.get("fix", "Refactor responsibly.")
+    roast = mapping.get("roast", ROASTS[i % len(ROASTS)])
 
     body.append("---")
     body.append(f"### 🔹 {i}. `{rule}` ({severity})")
-    body.append(f"📍 **`{file}:{line}`**")
-    body.append(f"**Issue:** {msg}\n")
+    body.append(f"📍 `{file}:{line}`")
+    body.append(f"📌 **Why**: {why}")
+    body.append(f"📌 **Issue**: {msg}")
 
-    if snippet:
-        body.append(f"```diff\n- {snippet}\n```")
+    body.append(f"📌 **Line causing issue**")
+    body.append("\n```diff")
+    body.append(f"- {snippet}")
+    body.append("```")
+    
+    body.append(f"📌 **How to fix**")
+    body.append("\n```diff")
+    body.append(f"+ {fix}")
+    body.append("```")
 
-    body.append(f"**Recommended Fix:**\n```diff\n+ {fix_snippet}\n```")
-    body.append(f"**Roast:** 🥲 {roast_text}\n")
+    body.append(f"{roast}\n")
 
-comment = "\n".join(body)
-pr.create_issue_comment(comment)
-
-print("💬 Stylish PR comment posted successfully.")
+pr.create_issue_comment("\n".join(body))
+print("💬 Commented on PR successfully.")
