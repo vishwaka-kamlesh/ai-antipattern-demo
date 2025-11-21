@@ -22,10 +22,7 @@ results = []
 
 for file_path in changed_files:
     if not os.path.exists(file_path):
-        print(f"⚠️ Skipping missing file: {file_path}")
         continue
-
-    print(f"\n📁 Checking file: {file_path}")
 
     diff_output = subprocess.getoutput(f"git diff -U0 {BASE_SHA} -- {file_path}")
     hunks = re.findall(r"@@ \-(\d+),?\d* \+(\d+),?(\d*) @@", diff_output)
@@ -47,19 +44,28 @@ for file_path in changed_files:
             tmp.write(chunk)
             tmp_path = tmp.name
 
-        # 🔥 IMPORTANT FIX: use your custom rules.yaml
-        cmd = ["semgrep", "--config=rules.yaml", "--json", tmp_path]
+        # Working Semgrep configuration directory
+        cmd = ["semgrep", "--config", "semgrep-rules", "--json", tmp_path]
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            sg_output = result.stdout
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
 
+            # Log stderr if rules misconfigured
+            if result.stderr:
+                print("⚠️ Semgrep stderr:\n", result.stderr)
+
+            sg_output = result.stdout
             json_start = sg_output.find('{')
             if json_start == -1:
                 continue
 
             parsed = json.loads(sg_output[json_start:])
-            
+
             for issue in parsed.get("results", []):
                 issue["path"] = file_path
                 issue["start"]["line"] += new_start - 1
