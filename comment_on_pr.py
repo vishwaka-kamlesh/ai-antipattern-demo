@@ -4,45 +4,135 @@ from github import Github, Auth
 
 SASSY_RULE_GUIDE = {
     "empty-catch-block": {
-        "fix": "Add logging or rethrow exception inside catch",
-        "roast": "Hiding crimes doesn’t make them legal.",
-        "why": "Unlogged exceptions make debugging impossible."
+        "fix": "Log the exception or rethrow it",
+        "roast": "Just pretending nothing happened? Cute.",
+        "why": "Swallowed exceptions hide real failures and break debugging."
     },
     "no-print-stacktrace": {
-        "fix": "logger.error(\"Unexpected error\", e)",
-        "roast": "StackTrace in prod is like yelling passwords.",
-        "why": "printStackTrace leaks internals and isn’t structured logging."
+        "fix": "Use logger.error(\"Unexpected error\", e)",
+        "roast": "printStackTrace is the caveman’s debugger.",
+        "why": "Leaks stack traces and ignores logging standards."
     },
     "no-system-out": {
-        "fix": "logger.info(\"message\")",
-        "roast": "System.out belongs in college labs.",
-        "why": "Bypasses logging infra, gets lost in prod."
+        "fix": "Use SLF4J logger",
+        "roast": "System.out belongs in hostel lab practicals.",
+        "why": "Bypasses logging pipelines and breaks production observability."
     },
     "logging-sensitive-data": {
-        "fix": "mask/redact sensitive data",
-        "roast": "Might as well CC the hackers.",
-        "why": "Leaking personal data makes compliance cry."
+        "fix": "Mask or redact secrets before logging",
+        "roast": "Why not send your passwords to public Slack too?",
+        "why": "PII exposure violates security and compliance."
     },
     "hardcoded-credentials": {
-        "fix": "move secrets to env or vault",
-        "roast": "Who needs privacy anyway?",
-        "why": "Secrets in code leak through repos and logs."
+        "fix": "Move secrets to environment/secret manager",
+        "roast": "Hackers be like: appreciate you bro.",
+        "why": "Credentials in code spread through repos and logs forever."
+    },
+    "hardcoded-url": {
+        "fix": "Use @Value or config properties for URLs",
+        "roast": "Hardcoding endpoints? Vendor lock-in speedrun.",
+        "why": "Changing environments breaks if URLs stay embedded in code."
     },
     "sql-injection-concat": {
-        "fix": "use prepared statements",
-        "roast": "Giving attackers direct DB access?",
-        "why": "String concat allows malicious SQL execution."
+        "fix": "Use prepared statements",
+        "roast": "One input field away from fame in a CVE database.",
+        "why": "Attackers can inject malicious SQL into concatenated queries."
     },
-    "resource-leak": {
-        "fix": "use try-with-resources",
-        "roast": "Your app is dripping memory everywhere.",
-        "why": "Leaked connections exhaust resource pools."
+    "no-thread-sleep": {
+        "fix": "Use async scheduler or executor",
+        "roast": "Freezing threads like you freeze in stand-ups.",
+        "why": "Blocks thread pools and wrecks latency under load."
+    },
+    "string-concat-in-loop": {
+        "fix": "Use StringBuilder or Stream.joining",
+        "roast": "Temporary string objects filing harassment complaints.",
+        "why": "Creates tons of temporary objects, hurting performance."
+    },
+    "expensive-object-in-loop": {
+        "fix": "Move heavyweight object creation outside the loop",
+        "roast": "CPU fan sounds like a rocket launch now.",
+        "why": "Repeated expensive initialization wastes CPU and memory."
+    },
+    "nplus1-query-repository": {
+        "fix": "Use JOIN FETCH, EntityGraph or batch fetching",
+        "roast": "Database screaming: ‘Why call me 90 times for a list?’",
+        "why": "Dozens of extra DB round trips destroy query performance."
+    },
+    "nplus1-query-lazy-loading": {
+        "fix": "Use eager fetching strategies",
+        "roast": "Lazy loading so lazy it overworks the DB.",
+        "why": "Each loop iteration triggers additional queries."
+    },
+    "string-equals-operator": {
+        "fix": "Use .equals() for string value comparison",
+        "roast": "Java isn’t JavaScript and == isn’t your friend.",
+        "why": "== compares references, causing hidden logic bugs."
+    },
+    "dto-public-fields": {
+        "fix": "Make fields private with getters/setters",
+        "roast": "Public fields? Your encapsulation got robbed.",
+        "why": "Leaks internal state and breaks class invariants."
     },
     "magic-numbers": {
-        "fix": "replace with named constant",
-        "roast": "What is 223? Your IQ? Mine? Unknown.",
-        "why": "Numbers without context kill readability."
-    }
+        "fix": "Replace literal with a named constant",
+        "roast": "Is 397 your lucky number or a cry for help?",
+        "why": "Unexplained constants weaken readability and maintainability."
+    },
+    "no-field-injection": {
+        "fix": "Use constructor injection",
+        "roast": "@Autowired fields ruin testability like an ex ruins peace.",
+        "why": "Constructor injection enforces immutability and clear deps."
+    },
+    "catch-generic-exception": {
+        "fix": "Catch specific exception types",
+        "roast": "Catching Exception is like catching Covid with a paper mask.",
+        "why": "Masks real errors and prevents meaningful handling."
+    },
+    "resource-leak": {
+        "fix": "Use try-with-resources properly",
+        "roast": "Connections leaking faster than your weekend plans.",
+        "why": "Unclosed streams and DB handles exhaust memory/thread pools."
+    },
+    "null-check-after-dereference": {
+        "fix": "Check for null *before* calling methods",
+        "roast": "NPE speedrun world record attempt?",
+        "why": "The null check is useless after dereferencing the variable."
+    },
+    "inefficient-empty-check": {
+        "fix": "Use .isEmpty() instead",
+        "roast": "This condition is more bloated than your backlog.",
+        "why": "Simplifies checks and avoids extra operations."
+    },
+    "double-checked-locking-no-volatile": {
+        "fix": "Add volatile keyword to instance field",
+        "roast": "Multi-threading without volatile… daring.",
+        "why": "Without volatile, state may never become visible to threads."
+    },
+    "boolean-comparison-with-equals": {
+        "fix": "Use Boolean.TRUE.equals(var)",
+        "roast": "== for Boolean? QA thanks you for the extra work.",
+        "why": "Avoids reference comparison and inconsistent truth tests."
+    },
+    "arrays-aslist-primitive": {
+        "fix": "Use IntStream/boxed or manual conversion",
+        "roast": "Primitive arrays didn’t ask to be treated as objects.",
+        "why": "Arrays.asList(primitive[]) treats whole array as one element."
+    },
+    "modify-collection-while-iterating-remove": {
+        "fix": "Use Iterator.remove()",
+        "roast": "ConcurrentModificationException just waiting to erupt.",
+        "why": "Removing during iteration corrupts collection state."
+    },
+    "modify-collection-while-iterating-add": {
+        "fix": "Collect separately or use iterator",
+        "roast": "Chaos-engineering by accident.",
+        "why": "Adding during iteration triggers concurrency faults."
+    },
+    "bigdecimal-from-double": {
+        "fix": "Use BigDecimal.valueOf(double)",
+        "roast": "Loss of precision like losing socks in laundry.",
+        "why": "double → BigDecimal introduces rounding errors."
+    },
 }
 
 ROASTS = [
@@ -74,8 +164,8 @@ if not issues:
     exit(0)
 
 body = [
-    "## 🚨 Semgrep Roast Review",
-    "Quality checks powered by sarcasm.\n"
+    "## 🚨Code Police",
+    "We will catch the bugs you create, so you don't have to wake at 2 am debugging thr production.\n"
 ]
 
 for i, issue in enumerate(issues, 1):
@@ -105,12 +195,15 @@ for i, issue in enumerate(issues, 1):
     body.append(f"📌 **Why**: {why}")
     body.append(f"📌 **Issue**: {msg}")
 
+    body.append(f"📌 **Line causing issue**")
     body.append("\n```diff")
     body.append(f"- {snippet}")
+    
+    body.append(f"📌 **How to fix**")
     body.append(f"+ {fix}")
     body.append("```")
 
-    body.append(f"🔥 **Roast**: {roast}\n")
+    body.append(f"{roast}\n")
 
 pr.create_issue_comment("\n".join(body))
 print("💬 Commented on PR successfully.")
