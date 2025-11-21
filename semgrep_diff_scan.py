@@ -45,7 +45,16 @@ for file_path in changed_files:
             tmp_path = tmp.name
 
         # Working Semgrep configuration directory
-        cmd = ["semgrep", "--config", "semgrep-rules", "--json", tmp_path]
+        cmd = [
+            "semgrep",
+            "scan",
+            "--config", "semgrep-rules",
+            "--json",
+            "--max-chars-per-line", "200",
+            "--max-lines-per-finding", "5",
+            "--json-include-raw",  # CORRECT way to include snippet
+            tmp_path
+        ]
 
         try:
             result = subprocess.run(
