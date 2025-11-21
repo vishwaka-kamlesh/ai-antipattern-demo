@@ -165,7 +165,7 @@ if not issues:
 
 body = [
     "## 🚨Code Police",
-    "We will catch the bugs you create, so you don't have to wake at 2 am debugging thr production.\n"
+    "We catch the bugs you create, so you don't have to wake at 2 am debugging the production.\n"
 ]
 
 for i, issue in enumerate(issues, 1):
@@ -198,8 +198,10 @@ for i, issue in enumerate(issues, 1):
     body.append(f"📌 **Line causing issue**")
     body.append("\n```diff")
     body.append(f"- {snippet}")
+    body.append("```")
     
     body.append(f"📌 **How to fix**")
+    body.append("\n```diff")
     body.append(f"+ {fix}")
     body.append("```")
 
