@@ -26,11 +26,16 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Semgrep
+      # Install Semgrep CLI so your diff script works
+      - name: Install Semgrep
+        run: pip install "semgrep==1.95.0"
+
+      - name: Run Semgrep Diff Scanner
         run: python semgrep_diff_scan.py
 
       - name: Comment on PR
         run: python comment_on_pr.py
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
