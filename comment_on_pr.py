@@ -2,7 +2,7 @@ import os
 import json
 from github import Github, Auth
 
-# Rule-specific fixes & roasts (triple-quoted to avoid quote issues)
+# Rule-specific fixes & roasts
 SASSY_RULE_GUIDE = {
     "empty-catch-block": {
         "fix": """log or rethrow the exception.""",
@@ -110,13 +110,12 @@ SASSY_RULE_GUIDE = {
     }
 }
 
-# Environment variables
 token = os.getenv("GITHUB_TOKEN")
 repo_name = os.getenv("GITHUB_REPOSITORY")
 pr_number = os.getenv("PR_NUMBER")
 
 if not token or not repo_name or not pr_number:
-    print("❌ Missing required environment variables GITHUB_TOKEN / GITHUB_REPOSITORY / PR_NUMBER")
+    print("❌ Missing environment variables: GITHUB_TOKEN / GITHUB_REPOSITORY / PR_NUMBER")
     exit(1)
 
 print("📥 Loading Semgrep results...")
@@ -133,7 +132,7 @@ gh = Github(auth=auth)
 pr = gh.get_repo(repo_name).get_pull(int(pr_number))
 
 if not issues:
-    pr.create_issue_comment("✨ No issues found. Code is smelling like fresh refactor!")
+    pr.create_issue_comment("✨ No issues found. Your code is cleaner than my conscience!")
     exit(0)
 
 body = [
@@ -142,7 +141,11 @@ body = [
 ]
 
 for i, issue in enumerate(issues, 1):
-    rule = issue.get("check_id", "unknown")
+    raw_rule = issue.get("check_id", "unknown")
+    
+    # 🔥 FIX: remove prefix like `semgrep-rules.`
+    rule = raw_rule.replace("semgrep-rules.", "")
+    
     meta = SASSY_RULE_GUIDE.get(rule, {})
 
     file = issue.get("path")
@@ -151,8 +154,8 @@ for i, issue in enumerate(issues, 1):
     severity = issue.get("extra", {}).get("severity", "warning").upper()
 
     snippet = issue.get("extra", {}).get("lines", "").strip()
-    fix_snippet = meta.get("fix", "Please apply proper fix here.")
-    roast_text = meta.get("roast", "You can improve this part.")
+    fix_snippet = meta.get("fix", "Apply correct fix here.")
+    roast_text = meta.get("roast", "Try harder.")
 
     body.append("---")
     body.append(f"### 🔹 {i}. `{rule}` ({severity})")
@@ -163,7 +166,7 @@ for i, issue in enumerate(issues, 1):
         body.append(f"```diff\n- {snippet}\n```")
 
     body.append(f"**Recommended Fix:**\n```diff\n+ {fix_snippet}\n```")
-    body.append(f"**Roast:** 🥲 {roast_text}\n")
+    body.append(f"**Roast:** 🤡 {roast_text}\n")
 
 comment = "\n".join(body)
 pr.create_issue_comment(comment)
