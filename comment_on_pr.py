@@ -134,7 +134,17 @@ for i, issue in enumerate(issues, 1):
     file = issue.get("path")
     line = issue.get("start", {}).get("line", "?")
     severity = meta.get("severity", "warning").upper()
-    snippet = meta.get("lines", "").strip()
+    snippet = ""
+
+    # Prefer raw snippet if present
+    if "lines" in meta and meta["lines"]:
+        snippet = meta["lines"].strip()
+    # Fallback: metavars (if semgrep writes snippet differently)
+    elif "metavars" in meta:
+        for mv in meta["metavars"].values():
+            if "abstract_content" in mv:
+                snippet = mv["abstract_content"].strip()
+            break
 
     mapping = SASSY_RULE_GUIDE.get(rule, {})
 
