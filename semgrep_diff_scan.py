@@ -52,7 +52,6 @@ for file_path in changed_files:
             "--json",
             "--max-chars-per-line", "200",
             "--max-lines-per-finding", "5",
-            "--json-include-raw",  # CORRECT way to include snippet
             tmp_path
         ]
 
