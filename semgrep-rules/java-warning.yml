@@ -1,12 +1,10 @@
 rules:
 
-  # 1. Truly empty catch blocks (ignores comments, braces, TODOs)
   - id: empty-catch-block
     languages: [java]
     severity: ERROR
     message: Empty catch block swallows exceptions. At minimum log or rethrow.
-    pattern: |
-      catch ($EX $E) { }
+    pattern-regex: catch\s*\([^)]+\)\s*\{\s*\}
 
   # 2. printStackTrace() — zero tolerance
   - id: no-print-stacktrace
@@ -29,7 +27,7 @@ rules:
   - id: logging-sensitive-data
     languages: [java]
     severity: ERROR
-    message: Logging sensitive data. Mask before logging (e.g., maskPassword(password)).
+    message: Logging sensitive data. Mask before logging.
     patterns:
       - pattern-either:
           - pattern: logger.$METHOD(..., $VAR, ...)
@@ -37,15 +35,16 @@ rules:
           - pattern: logger.$METHOD(String.format(..., $VAR, ...), ...)
       - metavariable-regex:
           metavariable: $VAR
-          regex: (?i).*(password|passwd|pwd|token|secret|apikey|api_key|clientsecret|client_secret|bearer|cardnumber|card_number|pan|cvv|pin|ssn|social_security).*
+          regex: (?i)(password|passwd|pwd|token|secret|apikey|api_key|clientsecret|client_secret|bearer|cardnumber|card_number|pan|cvv|pin|ssn|social_security)
+      - pattern-not-regex: '"[^"]*(password|token|secret)[^"]*"'
 
   # 5. Hardcoded credentials — real secrets only, exclude test/example patterns
   - id: hardcoded-credentials
     languages: [java]
     severity: ERROR
-    message: Hardcoded secret detected. Move to Vault / Config / Secrets Manager.
+    message: Hardcoded secret detected. Move to config or vault.
     patterns:
-      - pattern-regex: (?i)(password|passwd|pwd|secret|token|api[_-]?key|client[_-]?secret|bearer)\s*[:=]\s*"[^"{}\s]{8,}"
+      - pattern-regex: (?i)(password|passwd|pwd|secret|token|api[_-]?key|client[_-]?secret|bearer)\s*(=|:)\s*"[^"{}\s]{8,}"
       - pattern-not-regex: '(?i)(your_|example|placeholder|dummy|test_|fake_|sample|xxx|todo|change|replace)'
 
   # 6. Hardcoded URLs — only connection/config assignments, exclude docs/examples
@@ -56,7 +55,6 @@ rules:
     patterns:
       - pattern-either:
           - pattern: $TYPE $VAR = "https://...";
-          - pattern: $MODIFIER $TYPE $VAR = "https://...";
           - pattern: return "https://...";
       - metavariable-regex:
           metavariable: $VAR
@@ -122,22 +120,19 @@ rules:
           - pattern: new DocumentBuilder(...)
           - pattern: new XPath(...)
 
-  # 11. N+1 query — repository calls and lazy loading in loops
-  - id: nplus1-query-detection
+  # 11. N+1 query - repository calls in loop
+  - id: nplus1-query-repository
     languages: [java]
     severity: ERROR
-    message: Potential N+1 query. Use JOIN FETCH, @EntityGraph, or batch fetching.
-    patterns:
-      - pattern-inside: |
-          for ($E : $LIST) {
-            ...
-          }
-      - pattern-either:
-          - pattern: $REPO.$METHOD(...)
-          - pattern: $E.get$RELATION()
-      - metavariable-regex:
-          metavariable: $REPO
-          regex: .*(Repository|Repo|Dao|DAO)
+    message: Potential N+1 query - repository call inside loop. Use JOIN FETCH, @EntityGraph, or batch fetching.
+    pattern-regex: for\s*\([^)]+\)\s*\{[^}]*\b\w+(Repository|Repo)\s*\.\s*\w+\s*\([^}]*\}
+
+  # 11b. N+1 query - lazy loading
+  - id: nplus1-query-lazy-loading  
+    languages: [java]
+    severity: ERROR
+    message: Potential N+1 query - lazy loading inside loop. Use JOIN FETCH or @EntityGraph to fetch eagerly.
+    pattern-regex: for\s*\(\s*\w+\s+\w+\s*:\s*\w+\s*\)\s*\{[^}]*\.get\w+\s*\([^}]*\}
 
   # 12. String comparison with == operator
   - id: string-equals-operator
@@ -170,7 +165,7 @@ rules:
   - id: magic-numbers
     languages: [java]
     severity: WARNING
-    message: Replace magic number with named constant (static final) for maintainability.
+    message: Replace magic number with named constant.
     patterns:
       - pattern-either:
           - pattern: $VAR = $N;
@@ -178,20 +173,7 @@ rules:
       - metavariable-regex:
           metavariable: $N
           regex: ^(1[1-9]|[2-9][0-9]|[1-9][0-9]{2,})$
-      - pattern-not: $VAR = 200;
-      - pattern-not: $VAR = 201;
-      - pattern-not: $VAR = 400;
-      - pattern-not: $VAR = 401;
-      - pattern-not: $VAR = 403;
-      - pattern-not: $VAR = 404;
-      - pattern-not: $VAR = 500;
-      - pattern-not: $VAR = 502;
-      - pattern-not: $VAR = 503;
-      - pattern-not: $VAR = 8080;
-      - pattern-not: $VAR = 8443;
-      - pattern-not: $VAR = 3000;
-      - pattern-not: $VAR = 5432;
-      - pattern-not: $VAR = 3306;
+      - pattern-not-regex: '^(1000|2000|3000|5000)$'
       - pattern-not-inside: |
           static final $TYPE $CONST = ...;
       - pattern-not-inside: |
@@ -212,24 +194,39 @@ rules:
           @Value(...)
           $TYPE $FIELD;
 
+  # 16. Catching generic Exception — too broad
+  - id: catch-generic-exception
+    languages: [java]
+    severity: WARNING
+    message: Catching generic Exception is too broad. Catch specific exceptions (IOException, SQLException, etc.).
+    patterns:
+      - pattern: |
+          catch (Exception $E) {
+            ...
+          }
+      - pattern-not-inside: |
+          public static void main(...) {
+            ...
+          }
+
   # 17. Resource leak — missing try-with-resources
   - id: resource-leak
     languages: [java]
     severity: ERROR
-    message: Resource leak detected. Use try-with-resources for auto-closing (InputStream, Connection, Statement, Reader, etc.).
+    message: Resource leak detected. Use try-with-resources.
     patterns:
       - pattern-either:
           - pattern: $RES = new FileInputStream(...);
-          - pattern: $RES = new FileOutputStream(...);
+          - pattern: $RES = new BufferedReader(...);
           - pattern: $RES = new FileReader(...);
           - pattern: $RES = new FileWriter(...);
-          - pattern: $RES = new BufferedReader(...);
           - pattern: $RES = $CONN.createStatement();
-          - pattern: $RES = $CONN.prepareStatement(...);
+          - pattern: $RES = $CONN.prepareStatement(...)
       - pattern-not-inside: |
           try ($RES = ...) {
             ...
           }
+      - pattern-not: $RES.close(...)
 
   # 18. Null check after dereferencing — logic error
   - id: null-check-after-dereference
@@ -300,19 +297,19 @@ rules:
     message: Arrays.asList() doesn't work as expected with primitive arrays. Use IntStream, LongStream, or manual conversion.
     pattern: Arrays.asList($ARR)
 
-  # 23. Modifying collection while iterating
-  - id: modify-collection-while-iterating
+  # 23. Remove from collection while iterating
+  - id: modify-collection-while-iterating-remove
     languages: [java]
     severity: ERROR
-    message: Modifying collection during iteration causes ConcurrentModificationException. Use Iterator.remove() or collect to new collection.
-    patterns:
-      - pattern-inside: |
-          for ($E : $COLL) {
-            ...
-          }
-      - pattern-either:
-          - pattern: $COLL.remove(...)
-          - pattern: $COLL.add(...)
+    message: Removing from collection during iteration causes ConcurrentModificationException. Use Iterator.remove() instead.
+    pattern-regex: for\s*\(\s*\w+\s+\w+\s*:\s*(\w+)\s*\)\s*\{[^}]*\1\s*\.\s*remove\s*\([^}]*\}
+
+  # 23b. Add to collection while iterating
+  - id: modify-collection-while-iterating-add
+    languages: [java]
+    severity: ERROR
+    message: Adding to collection during iteration causes ConcurrentModificationException. Collect to new collection instead.
+    pattern-regex: for\s*\(\s*\w+\s+\w+\s*:\s*(\w+)\s*\)\s*\{[^}]*\1\s*\.\s*add\s*\([^}]*\}
 
   # 24. BigDecimal created from double
   - id: bigdecimal-from-double
@@ -320,70 +317,3 @@ rules:
     severity: ERROR
     message: Creating BigDecimal from double loses precision. Use BigDecimal.valueOf() or String constructor instead.
     pattern: new BigDecimal($D)
-
-    rules:
-
-  # 1. Empty catch blocks - FIXED with better pattern
-  - id: empty-catch-block
-    languages: [java]
-    severity: ERROR
-    message: Empty catch block swallows exceptions. At minimum log or rethrow.
-    pattern: |
-      catch (...) {
-      }
-
-  # 11a. N+1 query - repository calls in loop
-  - id: nplus1-query-repository
-    languages: [java]
-    severity: ERROR
-    message: Potential N+1 query - repository call inside loop. Use JOIN FETCH, @EntityGraph, or batch fetching.
-    patterns:
-      - pattern: |
-          for ($E : $LIST) {
-            ...
-            $REPO.$METHOD(...);
-            ...
-          }
-      - metavariable-regex:
-          metavariable: $REPO
-          regex: .*(Repository|Repo|repository|repo)
-
-  # 11b. N+1 query - entity getter calls (lazy loading)
-  - id: nplus1-query-lazy-loading
-    languages: [java]
-    severity: ERROR
-    message: Potential N+1 query - lazy loading inside loop. Use JOIN FETCH or @EntityGraph to fetch eagerly.
-    patterns:
-      - pattern: |
-          for ($ITEM : $ITEMS) {
-            ...
-            $ITEM.get$METHOD(...);
-            ...
-          }
-      - metavariable-regex:
-          metavariable: $METHOD
-          regex: (Orders|Users|Payments|Invoices|Customer|Product|Items|Details|Address|Profile)
-
-  # 23a. Remove from collection while iterating
-  - id: modify-collection-while-iterating-remove
-    languages: [java]
-    severity: ERROR
-    message: Removing from collection during iteration causes ConcurrentModificationException. Use Iterator.remove() instead.
-    pattern: |
-      for ($ITEM : $COLL) {
-        ...
-        $COLL.remove(...);
-        ...
-      }
-
-  # 23b. Add to collection while iterating
-  - id: modify-collection-while-iterating-add
-    languages: [java]
-    severity: ERROR
-    message: Adding to collection during iteration causes ConcurrentModificationException. Collect to new collection instead.
-    pattern: |
-      for ($ITEM : $COLL) {
-        ...
-        $COLL.add(...);
-        ...
-      }
